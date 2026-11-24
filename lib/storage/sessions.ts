@@ -9,7 +9,8 @@ export interface SessionStore {
   latestId(): string | null;
 }
 
-const KEY = "rabbit-hole:sessions:v1";
+// v3: the fall. Sessions from earlier designs (v1, v2) are left behind.
+const KEY = "rabbit-hole:sessions:v3";
 const MAX_SESSIONS = 20;
 
 function isSession(value: unknown): value is ExplorationSession {
@@ -17,17 +18,18 @@ function isSession(value: unknown): value is ExplorationSession {
   const s = value as ExplorationSession;
   return (
     typeof s.id === "string" &&
-    typeof s.originalThought === "string" &&
+    typeof s.rootQuestion === "string" &&
     typeof s.createdAt === "string" &&
     Array.isArray(s.nodes) &&
     s.nodes.every(
       (n) =>
         n &&
         typeof n.id === "string" &&
-        typeof n.content === "string" &&
+        typeof n.text === "string" &&
         Array.isArray(n.children),
     ) &&
-    s.nodes.some((n) => n.id === s.currentNodeId)
+    (s.mode === "deeper" || s.mode === "stranger") &&
+    s.nodes.some((n) => n.id === s.focusId)
   );
 }
 

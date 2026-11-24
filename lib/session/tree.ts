@@ -1,69 +1,59 @@
-import type { ExplorationNode, ExplorationSession } from "@/lib/types";
+import type { ExplorationMode, ExplorationSession, GeneratedQuestion, QuestionNode } from "@/lib/types";
 import { uid } from "@/lib/utils";
 
-type NewNode = Omit<ExplorationNode, "id" | "parentId" | "children" | "createdAt">;
-
-export function createSession(thought: string): ExplorationSession {
+export function createSession(question: string): ExplorationSession {
   const now = new Date().toISOString();
-  const root: ExplorationNode = {
-    id: uid("n-"),
+  const root: QuestionNode = {
+    id: uid("q-"),
     parentId: null,
-    type: "thought",
-    content: thought,
+    text: question,
+    mode: "deeper",
     children: [],
     createdAt: now,
   };
-  return {
-    id: uid(),
-    originalThought: thought,
-    createdAt: now,
-    nodes: [root],
-    currentNodeId: root.id,
-  };
+  return { id: uid(), rootQuestion: question, createdAt: now, nodes: [root], focusId: root.id, mode: "deeper" };
 }
 
 export function getNode(session: ExplorationSession, id: string | null | undefined) {
   return session.nodes.find((n) => n.id === id);
 }
 
-export function getRoot(session: ExplorationSession) {
-  return session.nodes.find((n) => n.parentId === null) ?? session.nodes[0];
+export function childrenOf(session: ExplorationSession, id: string): QuestionNode[] {
+  const node = getNode(session, id);
+  return (node?.children ?? []).map((c) => getNode(session, c)).filter((n): n is QuestionNode => Boolean(n));
 }
 
-export function addChild(
+/** The questions currently rising from a node in a direction: the newest set of four. */
+export function risingFrom(session: ExplorationSession, id: string, mode: ExplorationMode, count = 4) {
+  return childrenOf(session, id)
+    .filter((n) => n.mode === mode)
+    .slice(-count);
+}
+
+/** Add generated questions under a node, skipping repeats. */
+export function addQuestions(
   session: ExplorationSession,
   parentId: string,
-  node: NewNode,
-): [ExplorationSession, ExplorationNode] {
-  const child: ExplorationNode = {
-    ...node,
-    id: uid("n-"),
-    parentId,
-    children: [],
-    createdAt: new Date().toISOString(),
-  };
-  const nodes = session.nodes.map((n) =>
-    n.id === parentId ? { ...n, children: [...n.children, child.id] } : n,
-  );
-  return [{ ...session, nodes: [...nodes, child] }, child];
-}
-
-export function updateNode(
-  session: ExplorationSession,
-  id: string,
-  patch: Partial<ExplorationNode> | ((node: ExplorationNode) => Partial<ExplorationNode>),
+  generated: GeneratedQuestion[],
+  mode: ExplorationMode,
 ): ExplorationSession {
-  return {
-    ...session,
-    nodes: session.nodes.map((n) =>
-      n.id === id ? { ...n, ...(typeof patch === "function" ? patch(n) : patch) } : n,
-    ),
-  };
+  const existing = new Set(childrenOf(session, parentId).map((n) => n.text.toLowerCase()));
+  const now = new Date().toISOString();
+  const added: QuestionNode[] = [];
+  for (const q of generated) {
+    if (existing.has(q.text.toLowerCase())) continue;
+    existing.add(q.text.toLowerCase());
+    added.push({ id: uid("q-"), parentId, text: q.text, whisper: q.whisper, mode, children: [], createdAt: now });
+  }
+  const nodes = session.nodes.map((n) =>
+    n.id === parentId ? { ...n, children: [...n.children, ...added.map((a) => a.id)] } : n,
+  );
+  return { ...session, nodes: [...nodes, ...added] };
 }
 
 /** Nodes from the root down to `id`, inclusive. */
-export function pathTo(session: ExplorationSession, id: string): ExplorationNode[] {
-  const path: ExplorationNode[] = [];
+export function pathTo(session: ExplorationSession, id: string): QuestionNode[] {
+  const path: QuestionNode[] = [];
   let node = getNode(session, id);
   while (node) {
     path.unshift(node);
@@ -72,16 +62,10 @@ export function pathTo(session: ExplorationSession, id: string): ExplorationNode
   return path;
 }
 
-/** The thought-like node (thought or question) that owns `id`: itself, or its parent for a mutation. */
-export function thoughtAnchor(session: ExplorationSession, id: string): ExplorationNode | undefined {
-  const node = getNode(session, id);
-  if (!node) return undefined;
-  return node.type === "mutation" ? getNode(session, node.parentId) : node;
-}
-
-/** Short context for generation: the last few steps of the path, oldest first. */
-export function historyFor(session: ExplorationSession, id: string, limit = 5): string[] {
+/** Ancestor questions (root first, excluding `id`), capped for prompt context. */
+export function contextPath(session: ExplorationSession, id: string, limit = 5): string[] {
   return pathTo(session, id)
-    .slice(-limit - 1, -1)
-    .map((n) => (n.type === "mutation" ? `${n.title}: ${n.content}` : n.content));
+    .slice(0, -1)
+    .slice(-limit)
+    .map((n) => n.text);
 }

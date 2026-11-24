@@ -1,15 +1,10 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { requestContinue, requestMutations } from "@/lib/explore/client";
+import { requestQuestions } from "@/lib/explore/client";
 import { sessionStore } from "@/lib/storage/sessions";
-import type {
-  ExplorationMode,
-  ExplorationSession,
-  Mutation,
-  SimulationInteraction,
-} from "@/lib/types";
-import { addChild, getNode, historyFor, thoughtAnchor, updateNode } from "./tree";
+import type { ExplorationMode, ExplorationSession } from "@/lib/types";
+import { addQuestions, childrenOf, contextPath, getNode, risingFrom } from "./tree";
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const next = { ...record };
@@ -17,15 +12,19 @@ function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   return next;
 }
 
+/** Pending/error key for growing questions from a node in a direction. */
+export const growKey = (nodeId: string, mode: ExplorationMode) => `${nodeId}:${mode}`;
+
 /**
- * Owns one exploration session: loads it from storage (client-only component),
- * persists every change, and runs generation requests per node.
+ * Owns one fall: loads it from storage (client-only component), persists every change,
+ * and makes questions rise from whichever question you're holding.
  */
 export function useExplorationSession(sessionId: string) {
   const [session, setSession] = useState<ExplorationSession | null>(() => sessionStore.get(sessionId));
   const sessionRef = useRef(session);
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const inFlight = useRef(new Set<string>());
 
   const commit = useCallback((change: (s: ExplorationSession) => ExplorationSession) => {
     if (!sessionRef.current) return;
@@ -35,196 +34,61 @@ export function useExplorationSession(sessionId: string) {
     sessionStore.save(next);
   }, []);
 
-  const run = useCallback(async (nodeId: string, task: () => Promise<void>) => {
-    setPending((p) => ({ ...p, [nodeId]: true }));
-    setErrors((e) => without(e, nodeId));
-    try {
-      await task();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Something went wrong.";
-      setErrors((e) => ({ ...e, [nodeId]: message }));
-    } finally {
-      setPending((p) => without(p, nodeId));
-    }
-  }, []);
-
-  const goTo = useCallback(
-    (nodeId: string) => commit((s) => ({ ...s, currentNodeId: nodeId })),
+  const grow = useCallback(
+    async (nodeId: string, mode: ExplorationMode) => {
+      const key = growKey(nodeId, mode);
+      if (inFlight.current.has(key) || !sessionRef.current) return;
+      inFlight.current.add(key);
+      setPending((p) => ({ ...p, [key]: true }));
+      setErrors((e) => without(e, key));
+      try {
+        const s = sessionRef.current;
+        const node = getNode(s, nodeId)!;
+        const questions = await requestQuestions({
+          question: node.text,
+          path: contextPath(s, nodeId),
+          mode,
+          exclude: childrenOf(s, nodeId).map((n) => n.text),
+        });
+        commit((cur) => addQuestions(cur, nodeId, questions, mode));
+      } catch (error) {
+        setErrors((e) => ({ ...e, [key]: error instanceof Error ? error.message : "Something went wrong." }));
+      } finally {
+        inFlight.current.delete(key);
+        setPending((p) => without(p, key));
+      }
+    },
     [commit],
   );
 
-  const generateMutations = useCallback(
-    (nodeId: string, mode: ExplorationMode) =>
-      run(nodeId, async () => {
-        const s = sessionRef.current!;
-        const node = getNode(s, nodeId)!;
-        const result = await requestMutations({
-          thought: node.content,
-          mode,
-          history: historyFor(s, nodeId),
-        });
-        commit((cur) =>
-          updateNode(cur, nodeId, (n) => ({
-            mutations: { ...n.mutations, [mode]: result.mutations },
-            source: result.source,
-          })),
-        );
-      }),
-    [commit, run],
-  );
-
-  const chooseMode = useCallback(
-    (nodeId: string, mode: ExplorationMode) => {
-      commit((s) => ({ ...updateNode(s, nodeId, { mode }), currentNodeId: nodeId }));
-      const node = getNode(sessionRef.current!, nodeId);
-      if (!node?.mutations?.[mode]) void generateMutations(nodeId, mode);
-    },
-    [commit, generateMutations],
-  );
-
-  /** Switch direction from wherever the user is: applies to the owning thought/question. */
-  const switchMode = useCallback(
-    (mode: ExplorationMode) => {
+  /** Make sure questions are rising from a node in the current direction. */
+  const ensureRising = useCallback(
+    (nodeId: string) => {
       const s = sessionRef.current;
-      if (!s) return;
-      const anchor = thoughtAnchor(s, s.currentNodeId);
-      if (anchor) chooseMode(anchor.id, mode);
+      if (s && risingFrom(s, nodeId, s.mode).length === 0) void grow(nodeId, s.mode);
     },
-    [chooseMode],
+    [grow],
   );
 
-  const generateSimulation = useCallback(
-    (nodeId: string) =>
-      run(nodeId, async () => {
-        const s = sessionRef.current!;
-        const node = getNode(s, nodeId)!;
-        const parent = getNode(s, node.parentId)!;
-        const result = await requestContinue({
-          originalThought: s.originalThought,
-          thought: parent.content,
-          selectedMutation: node.mutation!,
-          mode: node.mode ?? "deeper",
-          interaction: null,
-          history: historyFor(s, nodeId),
-        });
-        commit((cur) =>
-          updateNode(cur, nodeId, {
-            simulation: result.simulation,
-            questions: result.questions,
-            source: result.source,
-          }),
-        );
-      }),
-    [commit, run],
-  );
-
-  const openMutation = useCallback(
-    (parentId: string, mutation: Mutation) => {
-      const s = sessionRef.current!;
-      const parent = getNode(s, parentId)!;
-      const existing = parent.children
-        .map((id) => getNode(s, id))
-        .find((n) => n?.mutation?.id === mutation.id);
-      if (existing) return goTo(existing.id);
-
-      let childId = "";
-      commit((cur) => {
-        const [next, child] = addChild(cur, parentId, {
-          type: "mutation",
-          title: mutation.title,
-          content: mutation.thought,
-          mode: parent.mode,
-          mutation,
-          appliedInteractions: [],
-        });
-        childId = child.id;
-        return { ...next, currentNodeId: child.id };
-      });
-      void generateSimulation(childId);
+  /** Fall into a question: it becomes the one you're holding. */
+  const dive = useCallback(
+    (nodeId: string) => {
+      commit((s) => ({ ...s, focusId: nodeId }));
+      ensureRising(nodeId);
     },
-    [commit, generateSimulation, goTo],
+    [commit, ensureRising],
   );
 
-  const refreshQuestions = useCallback(
-    (nodeId: string, interaction: SimulationInteraction | null, append: boolean) =>
-      run(`${nodeId}:questions`, async () => {
-        const s = sessionRef.current!;
-        const node = getNode(s, nodeId)!;
-        const parent = getNode(s, node.parentId)!;
-        const result = await requestContinue({
-          originalThought: s.originalThought,
-          thought: parent.content,
-          selectedMutation: node.mutation!,
-          mode: node.mode ?? "deeper",
-          interaction,
-          history: historyFor(s, nodeId),
-          questionsOnly: true,
-          excludeQuestions: (node.questions ?? []).map((q) => q.text),
-        });
-        commit((cur) =>
-          updateNode(cur, nodeId, (n) => ({
-            questions: append ? [...(n.questions ?? []), ...result.questions] : result.questions,
-          })),
-        );
-      }),
-    [commit, run],
-  );
-
-  const applyInteraction = useCallback(
-    (nodeId: string, interaction: SimulationInteraction) => {
-      const node = getNode(sessionRef.current!, nodeId);
-      if (!node || node.appliedInteractions?.includes(interaction.id)) return;
-      commit((s) =>
-        updateNode(s, nodeId, (n) => ({
-          appliedInteractions: [...(n.appliedInteractions ?? []), interaction.id],
-        })),
-      );
-      void refreshQuestions(nodeId, interaction, false);
+  /** Flip the direction of the fall. */
+  const setMode = useCallback(
+    (mode: ExplorationMode) => {
+      commit((s) => ({ ...s, mode }));
+      ensureRising(sessionRef.current!.focusId);
     },
-    [commit, refreshQuestions],
+    [commit, ensureRising],
   );
 
-  const moreQuestions = useCallback(
-    (nodeId: string) => refreshQuestions(nodeId, null, true),
-    [refreshQuestions],
-  );
-
-  /** A question becomes the next thought: a new branch under the mutation. */
-  const followQuestion = useCallback(
-    (mutationNodeId: string, text: string) => {
-      const s = sessionRef.current!;
-      const parent = getNode(s, mutationNodeId)!;
-      const existing = parent.children
-        .map((id) => getNode(s, id))
-        .find((n) => n?.content === text);
-      if (existing) return goTo(existing.id);
-
-      const mode = parent.mode ?? "deeper";
-      let childId = "";
-      commit((cur) => {
-        const [next, child] = addChild(cur, mutationNodeId, { type: "question", content: text, mode });
-        childId = child.id;
-        return { ...next, currentNodeId: child.id };
-      });
-      void generateMutations(childId, mode);
-    },
-    [commit, generateMutations, goTo],
-  );
-
-  return {
-    session,
-    pending,
-    errors,
-    goTo,
-    chooseMode,
-    switchMode,
-    generateMutations,
-    openMutation,
-    generateSimulation,
-    applyInteraction,
-    moreQuestions,
-    followQuestion,
-  };
+  return { session, pending, errors, grow, dive, setMode, ensureRising };
 }
 
 export type ExplorationController = ReturnType<typeof useExplorationSession>;

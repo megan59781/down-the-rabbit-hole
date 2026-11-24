@@ -1,60 +1,39 @@
-// Frontend generation calls. In Gate 2 these return labelled demo content;
-// Gate 3 swaps the bodies for requests to /api/explore and /api/continue.
-import { mockMutations, mockQuestions, mockSimulation } from "@/lib/mock";
-import type {
-  ContentSource,
-  ExplorationMode,
-  Mutation,
-  Question,
-  Simulation,
-  SimulationInteraction,
-} from "@/lib/types";
-import { wait } from "@/lib/utils";
+// Browser-side calls to the API routes, with responses validated before use.
+import { z } from "zod";
+import { QuestionsResponseSchema } from "@/lib/schemas";
+import type { ExplorationMode, GeneratedQuestion } from "@/lib/types";
 
-const fakeLatency = () => wait(700 + Math.random() * 700);
+const CLIENT_TIMEOUT_MS = 70_000;
 
-export type MutationsResult = { mutations: Mutation[]; source: ContentSource };
+async function post<T>(url: string, body: unknown, schema: z.ZodType<T>): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
+    });
+  } catch (error) {
+    const timedOut = error instanceof DOMException && error.name === "TimeoutError";
+    throw new Error(timedOut ? "The rabbit took too long to come back." : "Couldn't reach the server. Check your connection.");
+  }
 
-export async function requestMutations(input: {
-  thought: string;
-  mode: ExplorationMode;
-  history: string[];
-}): Promise<MutationsResult> {
-  await fakeLatency();
-  return { mutations: mockMutations(input.thought, input.mode), source: "demo" };
+  const data: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error((data as { error?: string } | null)?.error ?? "Something went wrong.");
+  }
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) throw new Error("The response didn't look right.");
+  return parsed.data;
 }
 
-export type ContinueResult = {
-  simulation?: Simulation;
-  questions: Question[];
-  suggestedThought: string;
-  source: ContentSource;
-};
-
-export async function requestContinue(input: {
-  originalThought: string;
-  thought: string;
-  selectedMutation: Mutation;
+export async function requestQuestions(input: {
+  question: string;
+  path: string[];
   mode: ExplorationMode;
-  interaction: SimulationInteraction | null;
-  history: string[];
-  /** Only generate questions (no new simulation), e.g. after an interaction or "more questions". */
-  questionsOnly?: boolean;
-  excludeQuestions?: string[];
-}): Promise<ContinueResult> {
-  await fakeLatency();
-  const { questions, suggestedThought } = mockQuestions(
-    input.thought,
-    input.selectedMutation,
-    input.interaction,
-    input.excludeQuestions,
-  );
-  return {
-    simulation: input.questionsOnly
-      ? undefined
-      : mockSimulation(input.thought, input.selectedMutation, input.mode),
-    questions,
-    suggestedThought,
-    source: "demo",
-  };
+  exclude: string[];
+}): Promise<GeneratedQuestion[]> {
+  const { questions } = await post("/api/questions", input, QuestionsResponseSchema);
+  return questions;
 }

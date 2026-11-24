@@ -51,7 +51,7 @@ export function ThoughtInput({ onSubmit }: ThoughtInputProps) {
         className="group relative rounded-3xl border border-white/10 bg-midnight-2/70 p-2 shadow-[0_0_60px_-20px_rgb(101_68_165/0.6)] backdrop-blur transition focus-within:border-lavender/50"
       >
         <label htmlFor="thought" className="sr-only">
-          Your thought
+          Your question
         </label>
         <textarea
           id="thought"
@@ -61,7 +61,7 @@ export function ThoughtInput({ onSubmit }: ThoughtInputProps) {
             if (e.key === "Enter" && !e.shiftKey) handleSubmit(e);
           }}
           rows={2}
-          placeholder="I'm falling behind everyone else..."
+          placeholder="Why do I always feel behind?"
           className="w-full resize-none bg-transparent px-4 pt-3 text-lg text-soft placeholder:text-muted/60 focus:outline-none"
         />
         <div className="flex items-center justify-between gap-3 px-2 pb-1">

@@ -35,7 +35,7 @@ export function LandingPage() {
           to see it?
         </h1>
         <p className="mt-5 max-w-md text-lg text-muted">
-          Enter a thought. Follow it somewhere unexpected.
+          Ask a question. Instead of answers, follow the questions it opens.
         </p>
         <div className="mt-10 flex w-full justify-center">
           <BeginJourney />
