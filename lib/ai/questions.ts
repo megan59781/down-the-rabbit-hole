@@ -13,7 +13,7 @@ Each question:
 - text: ONE short, plain question ending in "?", max 70 characters.
 - whisper: a tiny evocative hint of why it's worth falling into, max 45 characters, not a question and never an answer. Examples: "Most rules arrive without a vote." / "Tuesdays would last a week."
 - Different in kind from the others: an assumption challenged, a world where something is different, a surprising angle, something personal or philosophical.
-- Grows directly out of the question held, not a generic question that could follow anything.
+- Grows directly out of the question held, and only that question: treat it as if it were asked fresh, not as part of a longer conversation. Not a generic question that could follow anything.
 - No preamble, no "if X, then Y" setups, no repeating the question back.`;
 
 export async function generateQuestions(

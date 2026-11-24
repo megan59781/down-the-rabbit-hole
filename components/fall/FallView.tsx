@@ -280,16 +280,33 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
           : { duration: 0.6, ease: "easeIn" }
       }
       whileHover={state === "idle" ? { scale: 1.07 } : undefined}
-      className="group absolute z-10 w-[42vw] max-w-[17rem] -translate-x-1/2 -translate-y-1/2 text-center focus-visible:outline-none"
+      className="group absolute z-10 w-[44vw] max-w-[19rem] -translate-x-1/2 -translate-y-1/2 text-center focus-visible:outline-none"
     >
+      {/* A slow, lazy drift: a small figure-of-eight with a gentle breath, offset per question. */}
       <motion.span
-        className="block"
-        animate={reduce ? undefined : { y: [0, -7, 0], rotate: [0, index % 2 ? 1.2 : -1.2, 0] }}
-        transition={{ duration: 5 + index * 0.8, repeat: Infinity, ease: "easeInOut" }}
+        className="relative block"
+        animate={
+          reduce
+            ? undefined
+            : {
+                x: [0, 10, 0, -10, 0].map((v) => (index % 2 ? -v : v)),
+                y: [0, -9, 0, 9, 0],
+                rotate: [0, index % 2 ? 1.5 : -1.5, 0, index % 2 ? -1 : 1, 0],
+                scale: [1, 1.03, 1, 1.02, 1],
+              }
+        }
+        transition={{ duration: 9 + index * 1.3, repeat: Infinity, ease: "easeInOut" }}
       >
+        {/* Soft darkness behind the words so the tunnel lines never cut through them. */}
         <span
-          className="block font-display text-[0.95rem] leading-snug text-soft transition group-hover:text-white group-focus-visible:underline sm:text-lg"
-          style={{ textShadow: `0 0 18px rgb(${glow} / 0.55), 0 0 2px rgb(${glow} / 0.6)` }}
+          aria-hidden
+          className="absolute -inset-x-6 -inset-y-5 -z-10 rounded-[50%] bg-[radial-gradient(closest-side,rgb(10_8_18/0.88),rgb(10_8_18/0.55)_60%,transparent)]"
+        />
+        <span
+          className="block font-display text-base leading-snug font-medium text-white transition group-focus-visible:underline sm:text-xl"
+          style={{
+            textShadow: `0 1px 3px rgb(10 8 18 / 0.9), 0 0 22px rgb(${glow} / 0.45)`,
+          }}
         >
           <span aria-hidden style={{ color: `rgb(${glow})` }}>
             ?{" "}
@@ -297,7 +314,10 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
           {node.text}
         </span>
         {node.whisper ? (
-          <span className="mt-1.5 block text-xs text-muted italic opacity-70 transition group-hover:opacity-100">
+          <span
+            className="mt-1.5 block text-xs text-soft/75 italic transition group-hover:text-soft sm:text-sm"
+            style={{ textShadow: "0 1px 3px rgb(10 8 18 / 0.9)" }}
+          >
             {node.whisper}
           </span>
         ) : null}

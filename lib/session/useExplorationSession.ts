@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { requestQuestions } from "@/lib/explore/client";
 import { sessionStore } from "@/lib/storage/sessions";
 import type { ExplorationMode, ExplorationSession } from "@/lib/types";
-import { addQuestions, childrenOf, contextPath, getNode, risingFrom } from "./tree";
+import { addQuestions, childrenOf, getNode, risingFrom } from "./tree";
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const next = { ...record };
@@ -46,7 +46,8 @@ export function useExplorationSession(sessionId: string) {
         const node = getNode(s, nodeId)!;
         const questions = await requestQuestions({
           question: node.text,
-          path: contextPath(s, nodeId),
+          // Each new set grows only from the question you're holding, not the steps before it.
+          path: [],
           mode,
           exclude: childrenOf(s, nodeId).map((n) => n.text),
         });
