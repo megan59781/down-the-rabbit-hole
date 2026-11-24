@@ -26,10 +26,19 @@ npm run build
 ## Structure
 
 ```text
-app/                 routes, layout, global theme (globals.css), favicon (icon.svg)
-components/branding  Logo, RabbitIcon
-components/landing   LandingPage, ThoughtInput
-lib/types            shared domain types (sessions, mutations, simulations, questions)
+app/                       routes, layout, global theme (globals.css), favicon (icon.svg)
+app/explore/[sessionId]    the exploration screen (client-only; sessions live in localStorage)
+components/branding        Logo, RabbitIcon, RabbitGuide (loader, ears, footprints)
+components/landing         LandingPage, BeginJourney, ThoughtInput
+components/exploration     ExploreView, DirectionSelector, MutationExplorer, QuestionExplorer, ModeToggle
+components/simulations     SimulationRenderer + Timeline, BranchingPaths, DominoEffect
+components/trail           TrailMap (YOUR TRAIL)
+lib/types                  shared domain types
+lib/session                session tree helpers + useExplorationSession hook
+lib/storage                SessionStore abstraction (localStorage implementation)
+lib/explore/client.ts      generation calls used by the UI (demo content until Gate 3)
+lib/mock                   labelled demo content
+lib/content                landing page example prompts
 ```
 
 ## Brand tokens
@@ -41,7 +50,7 @@ Fonts: `font-display` (Space Grotesk), `font-sans` (Inter), `font-serif` (DM Ser
 ## Build progress
 
 - [x] Gate 1 — Project foundation
-- [ ] Gate 2 — Brand and frontend (mock data)
+- [x] Gate 2 — Brand and frontend (mock data)
 - [ ] Gate 3 — AI integration
 - [ ] Gate 4 — Interactive simulation engine
 - [ ] Gate 5 — Exploration spiral

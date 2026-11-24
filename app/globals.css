@@ -68,3 +68,10 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Sparks travelling along simulation paths */
+@keyframes dash {
+  to {
+    stroke-dashoffset: -30;
+  }
+}

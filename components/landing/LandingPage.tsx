@@ -1,6 +1,6 @@
 import { Logo } from "@/components/branding/Logo";
 import { RabbitIcon } from "@/components/branding/RabbitIcon";
-import { ThoughtInput } from "./ThoughtInput";
+import { BeginJourney } from "./BeginJourney";
 
 // Fixed positions so server and client render identically.
 const STARS = [
@@ -38,7 +38,7 @@ export function LandingPage() {
           Enter a thought. Follow it somewhere unexpected.
         </p>
         <div className="mt-10 flex w-full justify-center">
-          <ThoughtInput />
+          <BeginJourney />
         </div>
       </main>
 
