@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Logo } from "@/components/branding/Logo";
+import { useFallAudio } from "@/lib/audio/useFallAudio";
 import { RabbitIcon } from "@/components/branding/RabbitIcon";
 import { getNode, pathTo, risingFrom } from "@/lib/session/tree";
 import { growKey, useExplorationSession } from "@/lib/session/useExplorationSession";
@@ -63,6 +64,16 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const [lookingUp, setLookingUp] = useState(false);
   const [hasDived, setHasDived] = useState(false);
   const started = useRef(false);
+  const sound = useFallAudio(session?.mode ?? "deeper");
+
+  // A faint twinkle each time a new set of questions starts rising.
+  const risingKey = session ? risingFrom(session, session.focusId, session.mode).map((q) => q.id).join() : "";
+  const { sparkle } = sound;
+  useEffect(() => {
+    if (risingKey) sparkle();
+    // Only on a new set, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [risingKey]);
 
   // Start falling: make the first questions rise as soon as the view opens.
   useEffect(() => {
@@ -100,6 +111,8 @@ export function FallView({ sessionId }: { sessionId: string }) {
     if (diving) return;
     setDiving(id);
     setBurst((b) => b + 1);
+    sound.whoosh();
+    sound.chime(mode);
     setHasDived(true);
     setTimeout(() => {
       controller.dive(id);
@@ -110,6 +123,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const jump = (id: string) => {
     setLookingUp(false);
     setBurst((b) => b + 1);
+    sound.whoosh();
     controller.dive(id);
   };
 
@@ -128,6 +142,19 @@ export function FallView({ sessionId }: { sessionId: string }) {
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
+            onClick={sound.toggleSound}
+            aria-pressed={sound.soundOn}
+            aria-label={sound.soundOn ? "Turn sound off" : "Turn sound on"}
+            title={sound.soundOn ? "Sound on" : "Sound off"}
+            className={clsx(
+              "grid h-8 w-8 place-items-center rounded-full border bg-midnight/60 text-sm backdrop-blur transition",
+              sound.soundOn ? "border-lavender/60 text-soft" : "border-white/15 text-muted hover:text-soft",
+            )}
+          >
+            <span aria-hidden>{sound.soundOn ? "🔊" : "🔇"}</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setLookingUp(true)}
             className="rounded-full border border-white/15 bg-midnight/60 px-3 py-1.5 text-xs text-soft backdrop-blur hover:border-lavender/60"
           >
@@ -143,7 +170,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
       </header>
 
       <main className="absolute inset-0">
-        <Tunnel mode={mode} burst={burst} paused={lookingUp} />
+        <Tunnel mode={mode} burst={burst} paused={lookingUp} onSpeed={sound.setSpeed} />
         <RabbitSightings reduce={reduce} />
 
         {/* The question you're holding, at the heart of the hole. */}

@@ -9,6 +9,8 @@ type TunnelProps = {
   burst: number;
   /** Hover in place (e.g. while looking up). */
   paused: boolean;
+  /** Called every frame with the current falling speed (drives the wind sound). */
+  onSpeed?: (speed: number) => void;
 };
 
 const ICE = [156, 203, 255];
@@ -27,9 +29,9 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * down a cold, round tunnel; Stranger twists it into a drifting pink spiral. Scrolling or
  * swiping changes how fast you fall.
  */
-export function Tunnel({ mode, burst, paused }: TunnelProps) {
+export function Tunnel({ mode, burst, paused, onSpeed }: TunnelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const live = useRef({ modeTarget: mode === "stranger" ? 1 : 0, boost: 0, paused });
+  const live = useRef({ modeTarget: mode === "stranger" ? 1 : 0, boost: 0, paused, onSpeed });
 
   useEffect(() => {
     live.current.modeTarget = mode === "stranger" ? 1 : 0;
@@ -40,6 +42,9 @@ export function Tunnel({ mode, burst, paused }: TunnelProps) {
   useEffect(() => {
     live.current.paused = paused;
   }, [paused]);
+  useEffect(() => {
+    live.current.onSpeed = onSpeed;
+  }, [onSpeed]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -104,6 +109,7 @@ export function Tunnel({ mode, burst, paused }: TunnelProps) {
       scroll *= Math.pow(0.35, dt);
       const target = s.paused ? 0.04 : reduce ? 0.12 : 1 + s.boost + scroll;
       speed += (target - speed) * Math.min(1, dt * 3);
+      s.onSpeed?.(speed);
       spin += dt * (0.05 + m * 0.35) * Math.max(speed, 0.2);
 
       // Stranger tips gravity sideways: the vanishing point drifts and the whole hole rotates.
