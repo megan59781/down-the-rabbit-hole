@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { ExplorationMode } from "@/lib/types";
 
 type TunnelProps = {
@@ -11,6 +11,10 @@ type TunnelProps = {
   paused: boolean;
   /** Called every frame with the current falling speed (drives the wind sound). */
   onSpeed?: (speed: number) => void;
+  /** How many levels down you are: deeper is darker and slower. */
+  depth: number;
+  /** Steering input in -1..1 (phone tilt or mouse), nudging the hole's centre. */
+  steer?: RefObject<{ x: number; y: number }>;
 };
 
 const ICE = [156, 203, 255];
@@ -29,9 +33,10 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * down a cold, round tunnel; Stranger twists it into a drifting pink spiral. Scrolling or
  * swiping changes how fast you fall.
  */
-export function Tunnel({ mode, burst, paused, onSpeed }: TunnelProps) {
+export function Tunnel({ mode, burst, paused, onSpeed, depth, steer }: TunnelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const live = useRef({ modeTarget: mode === "stranger" ? 1 : 0, boost: 0, paused, onSpeed });
+  // Starts mid-plunge, so arriving from the landing page feels like you're still falling in.
+  const live = useRef({ modeTarget: mode === "stranger" ? 1 : 0, boost: 6, paused, onSpeed, depth, steer });
 
   useEffect(() => {
     live.current.modeTarget = mode === "stranger" ? 1 : 0;
@@ -45,6 +50,10 @@ export function Tunnel({ mode, burst, paused, onSpeed }: TunnelProps) {
   useEffect(() => {
     live.current.onSpeed = onSpeed;
   }, [onSpeed]);
+  useEffect(() => {
+    live.current.depth = depth;
+    live.current.steer = steer;
+  }, [depth, steer]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -93,6 +102,9 @@ export function Tunnel({ mode, burst, paused, onSpeed }: TunnelProps) {
     window.addEventListener("touchmove", onTouchMove, { passive: true });
 
     let m = live.current.modeTarget;
+    let dz = 0;
+    let sx = 0;
+    let sy = 0;
     let speed = 1;
     let spin = 0;
     let t = 0;
@@ -107,14 +119,19 @@ export function Tunnel({ mode, burst, paused, onSpeed }: TunnelProps) {
       m += (s.modeTarget - m) * Math.min(1, dt * 2);
       s.boost *= Math.pow(0.12, dt);
       scroll *= Math.pow(0.35, dt);
-      const target = s.paused ? 0.04 : reduce ? 0.12 : 1 + s.boost + scroll;
+      // Each level down the hole is a little darker and a little slower (levelling off around 8).
+      dz += (clamp(s.depth / 8, 0, 1) - dz) * Math.min(1, dt * 1.5);
+      const steerTarget = s.steer?.current ?? { x: 0, y: 0 };
+      sx += (steerTarget.x - sx) * Math.min(1, dt * 4);
+      sy += (steerTarget.y - sy) * Math.min(1, dt * 4);
+      const target = s.paused ? 0.04 : reduce ? 0.12 : (1 + s.boost + scroll) * (1 - 0.4 * dz);
       speed += (target - speed) * Math.min(1, dt * 3);
       s.onSpeed?.(speed);
       spin += dt * (0.05 + m * 0.35) * Math.max(speed, 0.2);
 
       // Stranger tips gravity sideways: the vanishing point drifts and the whole hole rotates.
-      const vx = w / 2 + m * w * 0.09 * Math.sin(t * 0.35);
-      const vy = h * 0.48 + m * h * 0.07 * Math.cos(t * 0.27);
+      const vx = w / 2 + m * w * 0.09 * Math.sin(t * 0.35) + sx * w * 0.12;
+      const vy = h * 0.48 + m * h * 0.07 * Math.cos(t * 0.27) + sy * h * 0.1;
       const scale = Math.max(w, h) * 0.5;
       const colour = mix(ICE, PINK, m);
       const accent = mix(LAVENDER, ICE, 1 - m);
@@ -122,7 +139,7 @@ export function Tunnel({ mode, burst, paused, onSpeed }: TunnelProps) {
       ctx.clearRect(0, 0, w, h);
 
       // The dark heart of the hole.
-      const hole = ctx.createRadialGradient(vx, vy, 0, vx, vy, scale * 0.9);
+      const hole = ctx.createRadialGradient(vx, vy, 0, vx, vy, scale * (0.9 + 0.6 * dz));
       hole.addColorStop(0, "rgba(4, 3, 10, 0.95)");
       hole.addColorStop(0.35, `rgba(${mix([101, 68, 165], colour, 0.3).join(",")}, 0.10)`);
       hole.addColorStop(1, "rgba(16, 14, 25, 0)");
@@ -147,7 +164,7 @@ export function Tunnel({ mode, burst, paused, onSpeed }: TunnelProps) {
         const [cx, cy] = centreAt(ring.z);
         const fadeFar = clamp(1 - ring.z / FAR, 0, 1);
         const fadeNear = clamp((ring.z - NEAR) / 0.8, 0, 1);
-        const alpha = fadeFar * fadeNear * (ring.alt ? 0.7 : 0.4);
+        const alpha = fadeFar * fadeNear * (ring.alt ? 0.7 : 0.4) * (1 - 0.5 * dz);
         const c = ring.alt ? accent : colour;
         ctx.beginPath();
         ctx.ellipse(cx, cy, r, r * (1 - 0.28 * m), spin + ring.z * 0.4 * m, 0, Math.PI * 2);
@@ -172,7 +189,7 @@ export function Tunnel({ mode, burst, paused, onSpeed }: TunnelProps) {
         const y1 = cy1 + Math.sin(angle) * (p.r * scale) / p.z;
         const x2 = cx2 + Math.cos(angle) * (p.r * scale) / (p.z + streak);
         const y2 = cy2 + Math.sin(angle) * (p.r * scale) / (p.z + streak);
-        const alpha = clamp(1 - p.z / FAR, 0, 1) * 0.8;
+        const alpha = clamp(1 - p.z / FAR, 0, 1) * 0.8 * (1 - 0.4 * dz);
         ctx.beginPath();
         ctx.moveTo(x2, y2);
         ctx.lineTo(x1, y1);

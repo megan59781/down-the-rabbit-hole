@@ -1,7 +1,7 @@
 "use client";
 
 import { clsx } from "clsx";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion, useTransform } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Logo } from "@/components/branding/Logo";
@@ -13,6 +13,7 @@ import type { ExplorationMode, QuestionNode } from "@/lib/types";
 import { GravityToggle } from "./GravityToggle";
 import { LookUp } from "./LookUp";
 import { Tunnel } from "./Tunnel";
+import { useSteer } from "./useSteer";
 
 /** Where the hole's vanishing point sits, in % of the stage. */
 const VANISH = { x: 50, y: 48 };
@@ -65,6 +66,14 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const [hasDived, setHasDived] = useState(false);
   const started = useRef(false);
   const sound = useFallAudio(session?.mode ?? "deeper");
+  const steering = useSteer(!reduce);
+  // Parallax: the questions drift against your steering, the held question gently with it.
+  // Less on phones, where the questions already sit close to the edges.
+  const drift = narrow ? 0.45 : 1;
+  const risingX = useTransform(steering.x, (v) => v * -22 * drift);
+  const risingY = useTransform(steering.y, (v) => v * -16 * drift);
+  const heldX = useTransform(steering.x, (v) => v * 8);
+  const heldY = useTransform(steering.y, (v) => v * 6);
 
   // A faint twinkle each time a new set of questions starts rising.
   const risingKey = session ? risingFrom(session, session.focusId, session.mode).map((q) => q.id).join() : "";
@@ -170,11 +179,27 @@ export function FallView({ sessionId }: { sessionId: string }) {
       </header>
 
       <main className="absolute inset-0">
-        <Tunnel mode={mode} burst={burst} paused={lookingUp} onSpeed={sound.setSpeed} />
-        <RabbitSightings reduce={reduce} />
+        <Tunnel
+          mode={mode}
+          burst={burst}
+          paused={lookingUp}
+          onSpeed={sound.setSpeed}
+          depth={depth}
+          steer={steering.steer}
+        />
+        {/* The deeper you go, the more the dark closes in around the edges. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgb(4_3_10)_100%)] transition-opacity duration-[2000ms]"
+          style={{ opacity: Math.min(depth / 8, 1) * 0.85 }}
+        />
+        <RabbitSightings reduce={reduce} depth={depth} />
 
         {/* The question you're holding, at the heart of the hole. */}
-        <div className="pointer-events-none absolute inset-0 grid place-items-center px-6">
+        <motion.div
+          className="pointer-events-none absolute inset-0 grid place-items-center px-6"
+          style={{ x: heldX, y: heldY }}
+        >
           <AnimatePresence mode="popLayout">
             <motion.div
               key={focus.id}
@@ -196,13 +221,14 @@ export function FallView({ sessionId }: { sessionId: string }) {
               </h1>
             </motion.div>
           </AnimatePresence>
-        </div>
+        </motion.div>
 
         {/* Questions rising out of the dark. */}
         <AnimatePresence>
           <motion.div
             key={`${focus.id}:${mode}`}
             className="absolute inset-0"
+            style={{ x: risingX, y: risingY }}
             exit={{ opacity: 0, transition: { duration: 0.25 } }}
           >
             {rising.map((q, i) => (
@@ -246,6 +272,15 @@ export function FallView({ sessionId }: { sessionId: string }) {
           ) : null}
         </div>
       </main>
+
+      {/* Arriving: you come out of the portal's darkness already falling. */}
+      <motion.div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-40 bg-[#04030a]"
+        initial={{ opacity: 1 }}
+        animate={{ opacity: 0 }}
+        transition={{ duration: reduce ? 0.2 : 1.1, ease: "easeOut" }}
+      />
 
       <AnimatePresence>
         {lookingUp ? <LookUp session={session} onJump={jump} onClose={() => setLookingUp(false)} /> : null}
@@ -354,8 +389,12 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
 }
 
 /** Every so often the rabbit flashes past, just ahead of you. */
-function RabbitSightings({ reduce }: { reduce: boolean }) {
+function RabbitSightings({ reduce, depth }: { reduce: boolean; depth: number }) {
   const [sighting, setSighting] = useState<{ key: number; angle: number } | null>(null);
+  const depthRef = useRef(depth);
+  useEffect(() => {
+    depthRef.current = depth;
+  }, [depth]);
 
   useEffect(() => {
     if (reduce) return;
@@ -363,7 +402,9 @@ function RabbitSightings({ reduce }: { reduce: boolean }) {
     const schedule = (delay: number) => {
       timer = setTimeout(() => {
         setSighting({ key: Date.now(), angle: Math.random() * Math.PI * 2 });
-        schedule(14000 + Math.random() * 12000);
+        // The deeper you are, the more often the rabbit shows itself.
+        const gap = Math.max(4000, 16000 - depthRef.current * 1800);
+        schedule(gap + Math.random() * gap * 0.6);
       }, delay);
     };
     schedule(6000);

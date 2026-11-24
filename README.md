@@ -25,7 +25,7 @@ npm run build
 
 ## How it works
 
-1. **Ask** a question on the landing page, and you start falling.
+1. **Ask** a question on the landing page: the rabbit hops into a portal, your question drops in after it, and you plunge into the tunnel.
 2. **Questions rise** out of the hole: four at a time, each with a one-line whisper of why it's interesting.
 3. **Grab one** (tap or click) to fall into it: the others rush past and new questions rise from it.
 4. **Flip gravity** with the header toggle:
@@ -34,6 +34,9 @@ npm run build
 5. **Scroll or swipe** to fall faster; stop and you slow to a hover.
 6. **↑ Look up** pauses the fall and shows the path you took, with the questions you passed beside it. Tap any to fall back into it.
 7. **↻ Let others rise** swaps in a fresh set.
+8. **Steer**: tilt your phone (or move the mouse on desktop) to lean the hole; the questions drift the other way.
+9. **Depth**: every level down is darker and slower, and the rabbit flashes past more often.
+10. **🔊 Sound** (off until you switch it on, then remembered): wind that follows your falling speed, a cold hum for Deeper, a warbling shimmer for Stranger, and bells when you grab a question or new ones rise. All synthesised live with the Web Audio API.
 
 The tunnel is a canvas animation; reduced-motion users get a slow, gentle version. Falls are saved in the browser (localStorage), so a refresh keeps everything.
 
@@ -62,7 +65,9 @@ app/api/questions          question → questions
 app/explore/[sessionId]    the fall (client-only; falls live in localStorage)
 components/branding        Logo, RabbitIcon, RabbitGuide (loader, ears, footprints)
 components/landing         LandingPage, BeginJourney, ThoughtInput
-components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp
+components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, useSteer (tilt/mouse)
+components/landing/JumpIn  the plunge from the landing page into the hole
+lib/audio                  FallAudio (Web Audio synth) + useFallAudio
 lib/ai                     provider abstraction, prompts, generators (server-only)
 lib/schemas                Zod schemas for requests, model output and responses
 lib/session                question tree helpers + useExplorationSession hook

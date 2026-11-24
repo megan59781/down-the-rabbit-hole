@@ -28,7 +28,7 @@ export function GravityToggle({ mode, onChange }: { mode: ExplorationMode; onCha
             title={o.hint}
             onClick={() => !active && onChange(o.mode)}
             className={clsx(
-              "relative rounded-full px-3 py-1.5 font-display text-xs font-semibold tracking-[0.12em] uppercase transition sm:px-5 sm:text-sm",
+              "relative rounded-full px-2.5 py-1.5 font-display text-[0.7rem] font-semibold tracking-[0.1em] whitespace-nowrap uppercase transition sm:px-5 sm:text-sm sm:tracking-[0.12em]",
               active ? "text-midnight" : "text-muted hover:text-soft",
             )}
           >
@@ -40,7 +40,8 @@ export function GravityToggle({ mode, onChange }: { mode: ExplorationMode; onCha
               />
             ) : null}
             <span className="relative">
-              {o.glyph} {o.label}
+              <span className="hidden sm:inline">{o.glyph} </span>
+              {o.label}
             </span>
           </button>
         );
