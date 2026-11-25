@@ -46,15 +46,21 @@ All model calls happen server-side; the browser never sees the key.
 
 | Route | In | Out |
 |---|---|---|
-| `POST /api/questions` | question, path, mode (deeper / stranger), exclude | 4 questions, each with a whisper |
+| `POST /api/questions` | question, path, mode (deeper / stranger), exclude | a stream (NDJSON) of up to 4 questions, each with a whisper, plus a `care` flag when needed |
 
 | Variable | Meaning |
 |---|---|
 | `AI_PROVIDER` | `anthropic` (the provider layer in `lib/ai/provider.ts` is swappable) |
 | `AI_API_KEY` | Anthropic API key |
 | `AI_MODEL` | model id, or shorthand `opus` / `sonnet` / `haiku`; defaults to `claude-opus-5-5` |
+| `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_PER_HOUR` | per-visitor limits (default 40 / 300) |
+| `AI_DAILY_CAP` | total AI calls per day across everyone, a spending cap (default 3000) |
 
-- Responses use structured outputs (Zod), then pass a second, stricter validation. Nothing model-generated is executed.
+- **Fast:** questions stream in one by one as the model writes them (first one in about a second). Once they've risen, the next level is quietly grown for each (two at a time), so diving is usually instant.
+- **Safe by default:** every streamed line is validated on the server and again in the browser. Nothing model-generated is executed.
+- **Care first:** questions that sound like real distress (a keyword check, plus the model's own flag) get gentle, grounded questions whatever the mode, and a calm support note with Samaritans and findahelpline.com.
+- **Abuse and cost controls:** same-origin check, per-visitor rate limits, a daily cap, and a small output token cap. Limits are in memory (per server instance); use a shared store such as Upstash Redis before real public traffic.
+- **Privacy:** questions go to the AI to grow new ones and are never stored or logged on the server; falls live in the browser's localStorage.
 - Requests run at low effort for responsiveness, with Anthropic's server-side refusal fallback enabled.
 
 ## Structure
@@ -69,7 +75,7 @@ components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, use
 components/landing/JumpIn  the plunge from the landing page into the hole
 lib/audio                  FallAudio (Web Audio synth) + useFallAudio
 lib/ai                     provider abstraction, prompts, generators (server-only)
-lib/schemas                Zod schemas for requests, model output and responses
+lib/schemas                Zod schemas for requests and streamed events
 lib/session                question tree helpers + useExplorationSession hook
 lib/storage                SessionStore abstraction (localStorage implementation)
 lib/explore/client.ts      browser-side calls to the API routes

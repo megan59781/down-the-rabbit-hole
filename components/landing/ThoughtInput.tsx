@@ -61,7 +61,7 @@ export function ThoughtInput({ onSubmit }: ThoughtInputProps) {
             if (e.key === "Enter" && !e.shiftKey) handleSubmit(e);
           }}
           rows={2}
-          placeholder="Why do I always feel behind?"
+          placeholder="Why do cats knock things off tables?"
           className="w-full resize-none bg-transparent px-4 pt-3 text-lg text-soft placeholder:text-muted/60 focus:outline-none"
         />
         <div className="flex items-center justify-between gap-3 px-2 pb-1">

@@ -13,15 +13,12 @@ export const QuestionsRequestSchema = z.object({
   exclude: z.array(z.string().max(MAX_QUESTION_LENGTH)).max(40).default([]),
 });
 
-/** What the model is asked to produce; limits are applied server-side afterwards. */
-export const QuestionsModelSchema = z.object({
-  questions: z.array(z.object({ text: z.string(), whisper: z.string() })),
-});
+const GeneratedQuestionSchema = z.object({ text: z.string().min(1).max(200), whisper: z.string().max(120) });
 
-/** Response, validated again in the browser. */
-export const QuestionsResponseSchema = z.object({
-  questions: z
-    .array(z.object({ text: z.string().min(1).max(200), whisper: z.string().max(120) }))
-    .min(2)
-    .max(6),
-});
+/** One line of the streamed response, validated again in the browser. */
+export const QuestionEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("care") }),
+  z.object({ type: z.literal("question"), question: GeneratedQuestionSchema }),
+  z.object({ type: z.literal("error"), error: z.string(), retryable: z.boolean().optional() }),
+  z.object({ type: z.literal("done") }),
+]);

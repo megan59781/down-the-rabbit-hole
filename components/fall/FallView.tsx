@@ -7,9 +7,10 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Logo } from "@/components/branding/Logo";
 import { useFallAudio } from "@/lib/audio/useFallAudio";
 import { RabbitIcon } from "@/components/branding/RabbitIcon";
-import { getNode, pathTo, risingFrom } from "@/lib/session/tree";
+import { childrenOf, getNode, pathTo, risingFrom } from "@/lib/session/tree";
 import { growKey, useExplorationSession } from "@/lib/session/useExplorationSession";
 import type { ExplorationMode, QuestionNode } from "@/lib/types";
+import { CareNote } from "./CareNote";
 import { GravityToggle } from "./GravityToggle";
 import { LookUp } from "./LookUp";
 import { Tunnel } from "./Tunnel";
@@ -75,14 +76,28 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const heldX = useTransform(steering.x, (v) => v * 8);
   const heldY = useTransform(steering.y, (v) => v * 6);
 
-  // A faint twinkle each time a new set of questions starts rising.
-  const risingKey = session ? risingFrom(session, session.focusId, session.mode).map((q) => q.id).join() : "";
+  // A faint plink for each question as it starts rising (they stream in one by one).
+  const risingIds = session ? risingFrom(session, session.focusId, session.mode).map((q) => q.id) : [];
+  const risingKey = risingIds.join();
+  const seenRising = useRef(new Set<string>());
   const { sparkle } = sound;
   useEffect(() => {
-    if (risingKey) sparkle();
-    // Only on a new set, not on every render.
+    const fresh = risingIds.filter((id) => !seenRising.current.has(id));
+    fresh.forEach((id) => seenRising.current.add(id));
+    if (fresh.length) sparkle(fresh.length);
+    // Only when the rising set changes, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [risingKey]);
+
+  // Once the questions have risen, quietly grow what lies beneath each, so diving is instant.
+  const focusGrowing = session ? Boolean(pending[growKey(session.focusId, session.mode)]) : false;
+  const { prefetch } = controller;
+  useEffect(() => {
+    if (!session || focusGrowing || risingIds.length === 0) return;
+    const timer = setTimeout(() => prefetch(risingIds, session.mode), 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [risingKey, focusGrowing, prefetch]);
 
   // Start falling: make the first questions rise as soon as the view opens.
   useEffect(() => {
@@ -115,6 +130,11 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const error = errors[key];
   const depth = pathTo(session, focus.id).length - 1;
   const slots = slotsFor(mode, narrow);
+  // Each question keeps the slot of the one it replaces, so new ones streaming in never shuffle the rest.
+  const slotOf = (q: QuestionNode) =>
+    childrenOf(session, focus.id)
+      .filter((n) => n.mode === mode)
+      .indexOf(q) % slots.length;
 
   const grab = (id: string) => {
     if (diving) return;
@@ -137,7 +157,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
   };
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-midnight">
+    <div className="relative flex h-dvh flex-col overflow-clip bg-midnight">
       <header className="relative z-30 flex items-center justify-between gap-2 px-3 py-3 sm:px-6">
         <Link href="/" aria-label="Back to the start" className="shrink-0">
           <span className="hidden sm:block">
@@ -231,12 +251,12 @@ export function FallView({ sessionId }: { sessionId: string }) {
             style={{ x: risingX, y: risingY }}
             exit={{ opacity: 0, transition: { duration: 0.25 } }}
           >
-            {rising.map((q, i) => (
+            {rising.map((q) => (
               <RisingQuestion
                 key={q.id}
                 node={q}
-                slot={slots[i % slots.length]}
-                index={i}
+                slot={slots[slotOf(q)]}
+                index={slotOf(q)}
                 state={diving === null ? "idle" : diving === q.id ? "chosen" : "passed"}
                 reduce={reduce}
                 onGrab={() => grab(q.id)}
@@ -254,7 +274,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
                 Try again
               </button>
             </p>
-          ) : growing ? (
+          ) : growing && rising.length === 0 ? (
             <p className="text-sm text-muted italic animate-pulse">
               {mode === "deeper" ? "Questions are rising from below…" : "Something strange is drifting in…"}
             </p>
@@ -281,6 +301,8 @@ export function FallView({ sessionId }: { sessionId: string }) {
         animate={{ opacity: 0 }}
         transition={{ duration: reduce ? 0.2 : 1.1, ease: "easeOut" }}
       />
+
+      <AnimatePresence>{session.care ? <CareNote /> : null}</AnimatePresence>
 
       <AnimatePresence>
         {lookingUp ? <LookUp session={session} onJump={jump} onClose={() => setLookingUp(false)} /> : null}

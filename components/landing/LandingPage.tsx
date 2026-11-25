@@ -44,6 +44,9 @@ export function LandingPage() {
 
       <footer className="relative z-10 px-4 py-6 text-center font-display text-xs tracking-[0.25em] text-muted/70 uppercase">
         Follow a thought. See where it might take you.
+        <span className="mt-2 block font-sans text-[0.7rem] tracking-normal text-muted/60 normal-case">
+          Your question is sent to an AI to grow new ones. Nothing is kept on our servers: your falls stay in this browser.
+        </span>
       </footer>
     </div>
   );

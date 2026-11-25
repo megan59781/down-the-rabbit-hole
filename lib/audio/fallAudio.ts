@@ -238,9 +238,9 @@ export class FallAudio {
     source.stop(now + 1.1);
   }
 
-  /** Four faint plinks, staggered like the questions rising. */
-  sparkle() {
+  /** A faint plink for each question rising, staggered like the questions themselves. */
+  sparkle(count = 4) {
     const now = this.ctx.currentTime;
-    for (let i = 0; i < 4; i++) this.bell(pick(STRANGE_SCALE) * 2, now + 0.5 + i * 0.25, 0.025, 0.9);
+    for (let i = 0; i < count; i++) this.bell(pick(STRANGE_SCALE) * 2, now + 0.5 + i * 0.25, 0.025, 0.9);
   }
 }

@@ -70,6 +70,6 @@ export function useFallAudio(mode: ExplorationMode) {
     setSpeed: (speed: number) => live()?.setSpeed(speed),
     chime: (m: ExplorationMode) => live()?.chime(m),
     whoosh: () => live()?.whoosh(),
-    sparkle: () => live()?.sparkle(),
+    sparkle: (count?: number) => live()?.sparkle(count),
   };
 }

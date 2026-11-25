@@ -23,6 +23,8 @@ export type ExplorationSession = {
   focusId: string;
   /** Current direction of the fall. */
   mode: ExplorationMode;
+  /** Set once anything in this fall sounds like real distress: shows support, keeps things gentle. */
+  care?: boolean;
 };
 
 /** A freshly generated question, as returned by /api/questions. */

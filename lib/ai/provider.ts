@@ -1,18 +1,11 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import type { z } from "zod";
 
-/** Provider-neutral interface: every generator asks for one structured object. */
+/** Provider-neutral interface: stream plain text so the UI can show results as they arrive. */
 export interface AIProvider {
   readonly name: string;
   readonly model: string;
-  generate<T>(request: {
-    system: string;
-    prompt: string;
-    schema: z.ZodType<T>;
-    signal?: AbortSignal;
-  }): Promise<T>;
+  streamText(request: { system: string; prompt: string; signal?: AbortSignal }): AsyncIterable<string>;
 }
 
 /** Errors safe to show the user. `retryable` hints whether "Try again" is worth offering. */
@@ -43,6 +36,7 @@ const FALLBACK_MODELS = new Set([
 ]);
 
 const REQUEST_TIMEOUT_MS = 50_000;
+const MAX_OUTPUT_TOKENS = 2000;
 
 class AnthropicProvider implements AIProvider {
   readonly name = "anthropic";
@@ -55,36 +49,30 @@ class AnthropicProvider implements AIProvider {
     this.client = new Anthropic({ apiKey, timeout: REQUEST_TIMEOUT_MS, maxRetries: 1 });
   }
 
-  async generate<T>({ system, prompt, schema, signal }: Parameters<AIProvider["generate"]>[0]) {
+  async *streamText({ system, prompt, signal }: Parameters<AIProvider["streamText"]>[0]) {
     try {
-      const response = await this.client.beta.messages.parse(
+      const stream = this.client.beta.messages.stream(
         {
           model: this.model,
-          max_tokens: 16000,
+          // Four short questions need a few hundred tokens; the cap keeps a runaway reply cheap.
+          max_tokens: MAX_OUTPUT_TOKENS,
           system,
           messages: [{ role: "user", content: prompt }],
           // Low effort keeps an interactive loop snappy; these are short creative outputs.
-          output_config: {
-            format: betaZodOutputFormat(schema as z.ZodType<T>),
-            effort: "low",
-          },
+          output_config: { effort: "low" },
           ...(FALLBACK_MODELS.has(this.model)
             ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }
             : {}),
         },
         { signal },
       );
-
-      if (response.stop_reason === "refusal") {
-        throw new AIError("The rabbit won't follow this one. Try phrasing the thought differently.", 422, false);
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") yield event.delta.text;
       }
-      if (response.stop_reason === "max_tokens") {
-        throw new AIError("The response ran too long. Please try again.", 502);
+      const final = await stream.finalMessage();
+      if (final.stop_reason === "refusal") {
+        throw new AIError("The rabbit won't follow this one. Try asking it differently.", 422, false);
       }
-      if (response.parsed_output == null) {
-        throw new AIError("The model returned something we couldn't read. Please try again.", 502);
-      }
-      return response.parsed_output as T;
     } catch (error) {
       throw toAIError(error);
     }
