@@ -27,6 +27,7 @@ import { CareNote } from "./CareNote";
 import { GravityToggle } from "./GravityToggle";
 import { LookUp } from "./LookUp";
 import { RabbitAsks } from "./RabbitAsks";
+import { TOURED_KEY, Tour } from "./Tour";
 import { Tunnel } from "./Tunnel";
 import { useSteer } from "./useSteer";
 
@@ -49,21 +50,17 @@ function subscribeNarrow(cb: () => void) {
 }
 const isNarrow = () => window.matchMedia("(max-width: 639px)").matches;
 
-/** Resting spots for the rising questions; Stranger and Astray tilt the arrangement off-axis, opposite ways. */
-function slotsFor(mode: ExplorationMode, narrow: boolean) {
-  const base = narrow
-    ? [
-        [28, 24],
-        [72, 30],
-        [28, 68],
-        [72, 80],
-      ]
-    : [
-        [21, 22],
-        [79, 25],
-        [19, 73],
-        [81, 71],
-      ];
+/**
+ * Resting spots for the rising questions on wider screens; Stranger and Astray tilt the
+ * arrangement off-axis, opposite ways. Phones use a stacked layout instead (see FallView).
+ */
+function slotsFor(mode: ExplorationMode) {
+  const base = [
+    [21, 22],
+    [79, 25],
+    [19, 73],
+    [81, 71],
+  ];
   if (mode === "deeper") return base.map(([x, y]) => ({ x, y }));
   const angle = ((mode === "stranger" ? -13 : 11) * Math.PI) / 180;
   return base.map(([x, y]) => {
@@ -85,6 +82,21 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const [burst, setBurst] = useState(0);
   const [lookingUp, setLookingUp] = useState(false);
   const [rabbitOpen, setRabbitOpen] = useState(false);
+  const [touring, setTouring] = useState(false);
+  // The tour is offered at the start of each new fall until you've taken it; the ? button brings
+  // it back any time.
+  const [offerTour, setOfferTour] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        setOfferTour(window.localStorage.getItem(TOURED_KEY) !== "1");
+      } catch {
+        setOfferTour(false);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  const endTour = useCallback(() => setTouring(false), []);
   const [hasDived, setHasDived] = useState(false);
   const started = useRef(false);
   const sound = useFallAudio(session?.mode ?? "deeper");
@@ -165,8 +177,13 @@ export function FallView({ sessionId }: { sessionId: string }) {
       <div className="flex min-h-dvh flex-col items-center justify-center gap-6 px-4 text-center">
         <RabbitIcon portal className="h-16 w-16 text-soft/70" />
         <h1 className="font-serif text-3xl text-soft">This hole has closed over.</h1>
-        <p className="max-w-sm text-muted">We couldn&rsquo;t find this fall. It may have been cleared from this browser.</p>
-        <Link href="/" className="rounded-full bg-lavender px-5 py-2.5 font-display text-sm font-semibold text-midnight">
+        <p className="max-w-sm text-muted">
+          We couldn&rsquo;t find this fall. It may have been cleared from this browser.
+        </p>
+        <Link
+          href="/"
+          className="rounded-full bg-lavender px-5 py-2.5 font-display text-sm font-semibold text-midnight"
+        >
           Ask a new question →
         </Link>
       </div>
@@ -180,7 +197,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const growing = Boolean(pending[key]);
   const error = errors[key];
   const depth = pathTo(session, focus.id).length - 1;
-  const slots = slotsFor(mode, narrow);
+  const slots = slotsFor(mode);
   // Each question keeps the slot of the one it replaces, so new ones streaming in never shuffle the rest.
   const slotOf = (q: QuestionNode) =>
     childrenOf(session, focus.id)
@@ -190,16 +207,23 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const grab = (id: string) => {
     if (diving) return;
     const chosen = rising.find((q) => q.id === id);
-    if (chosen) recordChoice(chosen, rising.filter((q) => q.id !== id));
+    if (chosen)
+      recordChoice(
+        chosen,
+        rising.filter((q) => q.id !== id),
+      );
     setDiving(id);
     setBurst((b) => b + 1);
     sound.whoosh();
     sound.chime(mode);
     setHasDived(true);
-    setTimeout(() => {
-      controller.dive(id);
-      setDiving(null);
-    }, reduce ? 150 : DIVE_MS);
+    setTimeout(
+      () => {
+        controller.dive(id);
+        setDiving(null);
+      },
+      reduce ? 150 : DIVE_MS,
+    );
   };
 
   // You caught the rabbit: the fall holds still while it asks you something.
@@ -224,6 +248,145 @@ export function FallView({ sessionId }: { sessionId: string }) {
     controller.dive(id);
   };
 
+  // The question you're holding: long ones (often the first question, or an answer to the
+  // rabbit) step down a size so they never crowd the questions around them.
+  const heldText = focus.answer ?? focus.text;
+  const heldSize =
+    // Short phones (e.g. iPhone SE) go one size smaller, so the stack fits without scrolling.
+    heldText.length > 160
+      ? "text-lg max-sm:[@media(max-height:720px)]:text-base sm:text-2xl"
+      : heldText.length > 80
+        ? "text-xl max-sm:[@media(max-height:720px)]:text-lg sm:text-3xl"
+        : "text-2xl max-sm:[@media(max-height:720px)]:text-xl sm:text-4xl";
+  const held = (
+    <AnimatePresence mode="popLayout">
+      <motion.div
+        key={focus.id}
+        data-tour="held"
+        initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.35, filter: "blur(10px)" }}
+        animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+        exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 2.6, filter: "blur(12px)" }}
+        transition={{ duration: reduce ? 0.2 : 0.7, ease: "easeOut" }}
+        className="max-w-[80vw] text-center sm:max-w-xl"
+        style={narrow ? undefined : { marginTop: "-4dvh" }}
+      >
+        {focus.answer !== undefined ? (
+          <>
+            {/* Your own words, held like any question: they only ever grow more questions. */}
+            <p className="mx-auto max-w-md text-xs text-muted italic">
+              <RabbitIcon className="mr-1 inline h-4 w-4 align-[-3px] text-lavender" />
+              {focus.text}
+            </p>
+            <h1
+              className={clsx("mt-3 font-serif leading-tight text-soft", heldSize)}
+              style={{ textShadow: `0 0 30px rgb(${GLOW[focus.mode]} / 0.35)` }}
+            >
+              &ldquo;{focus.answer}&rdquo;
+            </h1>
+            <p className="mt-2 text-[0.65rem] tracking-[0.3em] text-muted uppercase">You told the rabbit</p>
+          </>
+        ) : (
+          <>
+            <p className="text-[0.65rem] tracking-[0.3em] text-muted uppercase">
+              {depth === 0 ? "You're holding" : `${depth} down · you're holding`}
+            </p>
+            <h1
+              className={clsx("mt-3 font-serif leading-tight text-soft", heldSize)}
+              style={{ textShadow: `0 0 30px rgb(${GLOW[focus.mode]} / 0.35)` }}
+            >
+              {focus.text}
+            </h1>
+          </>
+        )}
+      </motion.div>
+    </AnimatePresence>
+  );
+
+  const risingQuestion = (q: QuestionNode) => (
+    <RisingQuestion
+      key={q.id}
+      node={q}
+      slot={slots[slotOf(q)]}
+      index={slotOf(q)}
+      flow={narrow}
+      tour={slotOf(q) === 0}
+      state={diving === null ? "idle" : diving === q.id ? "chosen" : "passed"}
+      reduce={reduce}
+      onGrab={() => grab(q.id)}
+    />
+  );
+
+  const controls = (className: string) => (
+    <div className={className}>
+      {/* Only on the first question of a fresh fall: never pops up once you're on your way down. */}
+      {offerTour &&
+      !touring &&
+      depth === 0 &&
+      focus.answer === undefined &&
+      !hasDived &&
+      !diving &&
+      rising.length > 0 &&
+      !growing ? (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.5 }}
+          className="pointer-events-auto flex items-center gap-1 rounded-full border border-lavender/40 bg-midnight/80 py-1 pr-1 pl-4 text-sm text-soft backdrop-blur"
+        >
+          First time down here?
+          <button
+            type="button"
+            onClick={() => {
+              setOfferTour(false);
+              setTouring(true);
+            }}
+            className="rounded-full bg-lavender px-3 py-1 font-display text-xs font-semibold text-midnight hover:bg-soft"
+          >
+            Take the tour
+          </button>
+          <button
+            type="button"
+            aria-label="Not now"
+            // Just for this fall: the next new question offers it again, until you take the tour.
+            onClick={() => setOfferTour(false)}
+            className="grid h-7 w-7 place-items-center rounded-full text-muted hover:text-soft"
+          >
+            ×
+          </button>
+        </motion.div>
+      ) : null}
+      {error ? (
+        <p role="alert" className="pointer-events-auto text-sm text-pink">
+          {error}{" "}
+          <button
+            type="button"
+            onClick={() => controller.grow(focus.id, mode)}
+            className="underline underline-offset-4"
+          >
+            Try again
+          </button>
+        </p>
+      ) : growing && rising.length === 0 ? (
+        <p className="text-sm text-muted italic animate-pulse">{RISING_TEXT[mode]}</p>
+      ) : mode === "astray" && rising.length > 0 && !growing ? (
+        <p className="text-xs text-lavender/90">
+          {habitLine ?? "Learning what you reach for, so it can lead you elsewhere."}
+        </p>
+      ) : !hasDived && rising.length > 0 ? (
+        <p className="text-xs text-muted/80">Tap a question to fall into it · scroll to fall faster</p>
+      ) : null}
+      {rising.length > 0 && !growing ? (
+        <button
+          type="button"
+          onClick={() => controller.grow(focus.id, mode)}
+          className="pointer-events-auto rounded-full border border-white/10 bg-midnight/50 px-3 py-1 text-xs text-muted backdrop-blur hover:text-soft"
+        >
+          ↻ Let others rise
+        </button>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="relative flex h-dvh flex-col overflow-clip bg-midnight">
       <header className="relative z-30 flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:flex-nowrap sm:px-6">
@@ -237,10 +400,24 @@ export function FallView({ sessionId }: { sessionId: string }) {
         </Link>
         {/* On phones the three directions get a row of their own under the logo. */}
         <div className="order-last flex w-full justify-center sm:order-none sm:w-auto">
-          <GravityToggle mode={mode} onChange={controller.setMode} />
+          <div data-tour="toggle">
+            <GravityToggle mode={mode} onChange={controller.setMode} />
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
+            type="button"
+            onClick={() => {
+              setOfferTour(false);
+              setTouring(true);
+            }}
+            aria-label="How it works"
+            className="grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-midnight/70 font-display text-sm font-semibold text-muted backdrop-blur transition hover:text-soft"
+          >
+            ?
+          </button>
+          <button
+            data-tour="sound"
             type="button"
             onClick={sound.toggleSound}
             aria-pressed={sound.soundOn}
@@ -255,6 +432,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
           </button>
           <button
             type="button"
+            data-tour="lookup"
             onClick={() => setLookingUp(true)}
             className="rounded-full border border-lavender/50 bg-lavender/15 px-3.5 py-2 text-sm font-medium text-soft backdrop-blur transition hover:bg-lavender/25"
           >
@@ -274,7 +452,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
         <Tunnel
           mode={mode}
           burst={burst}
-          paused={lookingUp || rabbitOpen}
+          paused={lookingUp || rabbitOpen || touring}
           onSpeed={sound.setSpeed}
           depth={depth}
           steer={steering.steer}
@@ -290,56 +468,9 @@ export function FallView({ sessionId }: { sessionId: string }) {
           reduce={reduce}
           depth={depth}
           // The rabbit leaves you be when things feel heavy, and while you're busy elsewhere.
-          catchable={!session.care && !lookingUp && !rabbitOpen && !diving}
+          catchable={!session.care && !lookingUp && !rabbitOpen && !touring && !diving}
           onCatch={catchRabbit}
         />
-
-        {/* The question you're holding, at the heart of the hole. */}
-        <motion.div
-          className="pointer-events-none absolute inset-0 grid place-items-center px-6"
-          style={{ x: heldX, y: heldY }}
-        >
-          <AnimatePresence mode="popLayout">
-            <motion.div
-              key={focus.id}
-              initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.35, filter: "blur(10px)" }}
-              animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 2.6, filter: "blur(12px)" }}
-              transition={{ duration: reduce ? 0.2 : 0.7, ease: "easeOut" }}
-              className="max-w-[80vw] text-center sm:max-w-xl"
-              style={{ marginTop: "-4dvh" }}
-            >
-              {focus.answer !== undefined ? (
-                <>
-                  {/* Your own words, held like any question: they only ever grow more questions. */}
-                  <p className="mx-auto max-w-md text-xs text-muted italic">
-                    <RabbitIcon className="mr-1 inline h-4 w-4 align-[-3px] text-lavender" />
-                    {focus.text}
-                  </p>
-                  <h1
-                    className="mt-3 font-serif text-2xl leading-tight text-soft sm:text-4xl"
-                    style={{ textShadow: `0 0 30px rgb(${GLOW[focus.mode]} / 0.35)` }}
-                  >
-                    &ldquo;{focus.answer}&rdquo;
-                  </h1>
-                  <p className="mt-2 text-[0.65rem] tracking-[0.3em] text-muted uppercase">You told the rabbit</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-[0.65rem] tracking-[0.3em] text-muted uppercase">
-                    {depth === 0 ? "You're holding" : `${depth} down · you're holding`}
-                  </p>
-                  <h1
-                    className="mt-3 font-serif text-2xl leading-tight text-soft sm:text-4xl"
-                    style={{ textShadow: `0 0 30px rgb(${GLOW[focus.mode]} / 0.35)` }}
-                  >
-                    {focus.text}
-                  </h1>
-                </>
-              )}
-            </motion.div>
-          </AnimatePresence>
-        </motion.div>
 
         {mode === "astray" ? (
           <AstrayGhosts
@@ -350,59 +481,66 @@ export function FallView({ sessionId }: { sessionId: string }) {
           />
         ) : null}
 
-        {/* Questions rising out of the dark. */}
-        <AnimatePresence>
-          <motion.div
-            key={`${focus.id}:${mode}`}
-            className="absolute inset-0"
-            style={{ x: risingX, y: risingY }}
-            exit={{ opacity: 0, transition: { duration: 0.25 } }}
-          >
-            {rising.map((q) => (
-              <RisingQuestion
-                key={q.id}
-                node={q}
-                slot={slots[slotOf(q)]}
-                index={slotOf(q)}
-                state={diving === null ? "idle" : diving === q.id ? "chosen" : "passed"}
-                reduce={reduce}
-                onGrab={() => grab(q.id)}
-              />
-            ))}
-          </motion.div>
-        </AnimatePresence>
-
-        {/* Status and controls along the bottom. */}
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 px-4 pb-5">
-          {error ? (
-            <p role="alert" className="pointer-events-auto text-sm text-pink">
-              {error}{" "}
-              <button type="button" onClick={() => controller.grow(focus.id, mode)} className="underline underline-offset-4">
-                Try again
-              </button>
-            </p>
-          ) : growing && rising.length === 0 ? (
-            <p className="text-sm text-muted italic animate-pulse">
-              {RISING_TEXT[mode]}
-            </p>
-          ) : mode === "astray" && rising.length > 0 && !growing ? (
-            <p className="text-xs text-lavender/90">
-              {habitLine ?? "Learning what you reach for, so it can lead you elsewhere."}
-            </p>
-          ) : !hasDived && rising.length > 0 ? (
-            <p className="text-xs text-muted/80">Tap a question to fall into it · scroll to fall faster</p>
-          ) : null}
-          {rising.length > 0 && !growing ? (
-            <button
-              type="button"
-              onClick={() => controller.grow(focus.id, mode)}
-              className="pointer-events-auto rounded-full border border-white/10 bg-midnight/50 px-3 py-1 text-xs text-muted backdrop-blur hover:text-soft"
+        {narrow ? null : (
+          <>
+            {/* The question you're holding, at the heart of the hole. */}
+            <motion.div
+              className="pointer-events-none absolute inset-0 grid place-items-center px-6"
+              style={{ x: heldX, y: heldY }}
             >
-              ↻ Let others rise
-            </button>
-          ) : null}
-        </div>
+              {held}
+            </motion.div>
+
+            {/* Questions rising out of the dark. */}
+            <AnimatePresence>
+              <motion.div
+                key={`${focus.id}:${mode}`}
+                className="absolute inset-0"
+                style={{ x: risingX, y: risingY }}
+                exit={{ opacity: 0, transition: { duration: 0.25 } }}
+              >
+                {rising.map(risingQuestion)}
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Status and controls along the bottom. */}
+            {controls(
+              "pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-2 px-4 pb-5",
+            )}
+          </>
+        )}
       </main>
+
+      {narrow ? (
+        // Phones: a stack, so nothing can ever sit on top of anything else. Two questions above,
+        // the one you're holding, two below, then the controls; each takes the room its words need.
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-3">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${focus.id}:${mode}:above`}
+              className="grid flex-1 grid-cols-2 items-end gap-x-4 pt-5"
+              exit={{ opacity: 0, transition: { duration: 0.25 } }}
+            >
+              {rising.filter((q) => slotOf(q) < 2).map(risingQuestion)}
+            </motion.div>
+          </AnimatePresence>
+          <div className="pointer-events-none my-5 flex shrink-0 justify-center [@media(max-height:720px)]:my-3">
+            {held}
+          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${focus.id}:${mode}:below`}
+              className="grid flex-1 grid-cols-2 items-start gap-x-4"
+              exit={{ opacity: 0, transition: { duration: 0.25 } }}
+            >
+              {rising.filter((q) => slotOf(q) >= 2).map(risingQuestion)}
+            </motion.div>
+          </AnimatePresence>
+          {controls(
+            "pointer-events-none relative z-20 flex shrink-0 flex-col items-center gap-2 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+          )}
+        </div>
+      ) : null}
 
       {/* Arriving: you come out of the portal's darkness already falling. */}
       <motion.div
@@ -414,6 +552,8 @@ export function FallView({ sessionId }: { sessionId: string }) {
       />
 
       <AnimatePresence>{session.care ? <CareNote /> : null}</AnimatePresence>
+
+      <AnimatePresence>{touring ? <Tour onDone={endTour} /> : null}</AnimatePresence>
 
       <AnimatePresence>
         {rabbitOpen ? (
@@ -436,16 +576,29 @@ type RisingQuestionProps = {
   node: QuestionNode;
   slot: { x: number; y: number };
   index: number;
+  /** Phones: sit in the stacked layout and move relative to that place, instead of across the screen. */
+  flow?: boolean;
+  /** The question the tour points at. */
+  tour?: boolean;
   state: "idle" | "chosen" | "passed";
   reduce: boolean;
   onGrab: () => void;
 };
 
 /** A question floating up out of the hole. Grab it and you fall into it; the rest rush past. */
-function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQuestionProps) {
+function RisingQuestion({ node, slot, index, flow, tour, state, reduce, onGrab }: RisingQuestionProps) {
   const glow = GLOW[node.mode];
-  const target =
+  // In the phone stack, "towards the centre" is a direction from wherever this question sits.
+  const toCentre = { x: index % 2 ? -1 : 1, y: index < 2 ? 1 : -1 };
+  const flowTarget =
     state === "chosen"
+      ? { x: toCentre.x * 70, y: toCentre.y * 110, scale: 1.5, opacity: 0 }
+      : state === "passed"
+        ? { x: -toCentre.x * 60, y: -toCentre.y * 140, scale: 2.2, opacity: 0 }
+        : { x: 0, y: 0, scale: 1, opacity: reduce ? 1 : [0, 0, 1] };
+  const target = flow
+    ? flowTarget
+    : state === "chosen"
       ? { left: `${VANISH.x}%`, top: `${VANISH.y}%`, scale: 1.5, opacity: 0 }
       : state === "passed"
         ? {
@@ -463,15 +616,19 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
       onClick={onGrab}
       disabled={state !== "idle"}
       initial={
-        reduce
-          ? { left: `${slot.x}%`, top: `${slot.y}%`, opacity: 0 }
-          : {
-              // Emerge a little way out from the vanishing point, already heading for its own spot.
-              left: `${VANISH.x + (slot.x - VANISH.x) * 0.25}%`,
-              top: `${VANISH.y + (slot.y - VANISH.y) * 0.25}%`,
-              scale: 0.15,
-              opacity: 0,
-            }
+        flow
+          ? reduce
+            ? { opacity: 0 }
+            : { x: toCentre.x * 70, y: toCentre.y * 110, scale: 0.15, opacity: 0 }
+          : reduce
+            ? { left: `${slot.x}%`, top: `${slot.y}%`, opacity: 0 }
+            : {
+                // Emerge a little way out from the vanishing point, already heading for its own spot.
+                left: `${VANISH.x + (slot.x - VANISH.x) * 0.25}%`,
+                top: `${VANISH.y + (slot.y - VANISH.y) * 0.25}%`,
+                scale: 0.15,
+                opacity: 0,
+              }
       }
       animate={target}
       transition={
@@ -485,7 +642,20 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
           : { duration: 0.6, ease: "easeIn" }
       }
       whileHover={state === "idle" ? { scale: 1.07 } : undefined}
-      className="group absolute z-10 w-[44vw] max-w-[19rem] -translate-x-1/2 -translate-y-1/2 text-center focus-visible:outline-none"
+      data-tour={tour ? "rising" : undefined}
+      className={clsx(
+        "group z-10 text-center focus-visible:outline-none",
+        flow
+          ? // Its own column and row; the diagonal offsets keep the stagger of the wide layout.
+            clsx(
+              "relative row-start-1 w-full",
+              index % 2 ? "col-start-2" : "col-start-1",
+              // Tighter on short phones, so the whole stack fits without scrolling.
+              index === 0 && "mb-10 [@media(max-height:720px)]:mb-4",
+              index === 3 && "mt-10 [@media(max-height:720px)]:mt-4",
+            )
+          : "absolute w-[44vw] max-w-[19rem] -translate-x-1/2 -translate-y-1/2",
+      )}
     >
       {/* A slow, lazy drift: a small figure-of-eight with a gentle breath, offset per question. */}
       <motion.span
@@ -494,8 +664,9 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
           reduce
             ? undefined
             : {
-                x: [0, 10, 0, -10, 0].map((v) => (index % 2 ? -v : v)),
-                y: [0, -9, 0, 9, 0],
+                // Gentler in the phone stack, so a drifting question never reaches its neighbour.
+                x: [0, 10, 0, -10, 0].map((v) => (index % 2 ? -v : v) * (flow ? 0.4 : 1)),
+                y: [0, -9, 0, 9, 0].map((v) => v * (flow ? 0.4 : 1)),
                 rotate: [0, index % 2 ? 1.5 : -1.5, 0, index % 2 ? -1 : 1, 0],
                 scale: [1, 1.03, 1, 1.02, 1],
               }
@@ -508,7 +679,7 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
           className="absolute -inset-x-6 -inset-y-5 -z-10 rounded-[50%] bg-[radial-gradient(closest-side,rgb(10_8_18/0.88),rgb(10_8_18/0.55)_60%,transparent)]"
         />
         <span
-          className="block font-display text-base leading-snug font-medium text-white transition group-focus-visible:underline sm:text-xl"
+          className="block font-display text-base leading-snug font-medium text-white transition group-focus-visible:underline max-sm:[@media(max-height:720px)]:text-sm sm:text-xl"
           style={{
             textShadow: `0 1px 3px rgb(10 8 18 / 0.9), 0 0 22px rgb(${glow} / 0.45)`,
           }}

@@ -25,7 +25,7 @@ npm run build
 
 ## How it works
 
-1. **Ask** a question on the landing page: the rabbit hops into a portal, your question drops in after it, and you plunge into the tunnel.
+1. **Ask** a question on the landing page (the **?** in the corner explains the idea in four lines): the rabbit hops into a portal, your question drops in after it, and you plunge into the tunnel.
 2. **Questions rise** out of the hole: four at a time, each with a one-line whisper of why it's interesting.
 3. **Grab one** (tap or click) to fall into it: the others rush past and new questions rise from it.
 4. **Flip gravity** with the header toggle:
@@ -39,6 +39,7 @@ npm run build
 9. **Depth**: every level down is darker and slower, and the rabbit flashes past more often.
 10. **Catch the rabbit** (tap it, or press R while it's there) and it asks *you* something (see below).
 11. **🔊 Sound** (off until you switch it on, then remembered): wind that follows your falling speed, a cold hum for Deeper, a warbling shimmer for Stranger, an unsettled, wandering drone for Astray, and bells when you grab a question or new ones rise. All synthesised live with the Web Audio API.
+12. **? How it works**: a short, skippable spotlight tour of the fall (seven steps; arrow keys and Escape work). Offered at the start of each new fall (on the first question only) until you've taken it, and always one tap away in the header.
 
 The tunnel is a canvas animation; reduced-motion users get a slow, gentle version. Falls are saved in the browser (localStorage), so a refresh keeps everything.
 
@@ -98,7 +99,7 @@ app/api/rabbit             the rabbit's streamed self-test → a question only y
 app/explore/[sessionId]    the fall (client-only; falls live in localStorage)
 components/branding        Logo, RabbitIcon, RabbitGuide (loader, ears, footprints)
 components/landing         LandingPage, BeginJourney, ThoughtInput
-components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, HabitMirror, AstrayGhosts, RabbitAsks, CareNote, useSteer
+components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, HabitMirror, AstrayGhosts, RabbitAsks, Tour, CareNote, useSteer
 lib/astray                 territories, habit model, on-device embedder, the inverted recommender
 public/astray              the embedding Web Worker
 components/landing/JumpIn  the plunge from the landing page into the hole

@@ -1,6 +1,7 @@
 import { Logo } from "@/components/branding/Logo";
 import { RabbitIcon } from "@/components/branding/RabbitIcon";
 import { BeginJourney } from "./BeginJourney";
+import { HowItWorks } from "./HowItWorks";
 
 // Fixed positions so server and client render identically.
 const STARS = [
@@ -21,8 +22,9 @@ export function LandingPage() {
         ))}
       </div>
 
-      <header className="relative z-10 px-4 py-5 sm:px-8">
+      <header className="relative z-10 flex items-center justify-between px-4 py-5 sm:px-8">
         <Logo />
+        <HowItWorks />
       </header>
 
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 pb-16 text-center">
