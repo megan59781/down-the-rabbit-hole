@@ -8,6 +8,7 @@ import { RabbitIcon } from "@/components/branding/RabbitIcon";
 import { childrenOf, pathTo } from "@/lib/session/tree";
 import type { ExplorationSession } from "@/lib/types";
 import { HabitMirror } from "./HabitMirror";
+import { ShareSheet } from "./ShareSheet";
 
 const MODE_TEXT = { deeper: "text-ice", stranger: "text-pink", astray: "text-lavender" } as const;
 const MODE_GLYPH = { deeper: "↓", stranger: "✦", astray: "⇝" } as const;
@@ -30,13 +31,15 @@ type LookUpProps = {
  */
 export function LookUp({ session, onJump, onClose }: LookUpProps) {
   const [page, setPage] = useState<Page>("path");
+  const [sharing, setSharing] = useState(false);
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
-    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && onClose();
+    // While the share sheet is open, Escape closes that, not Look up.
+    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && !sharing && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, sharing]);
 
   // Arrow keys move between the two pages, as tabs should.
   const onTabKey = (e: KeyboardEvent<HTMLButtonElement>) => {
@@ -60,13 +63,23 @@ export function LookUp({ session, onJump, onClose }: LookUpProps) {
     >
       <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3">
         <p className="font-display text-xs tracking-[0.15em] text-muted uppercase sm:tracking-[0.3em]">↑ Looking up the hole</p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="shrink-0 rounded-full border border-lavender/50 bg-lavender/15 px-4 py-2 text-sm font-medium text-soft transition hover:bg-lavender/25"
-        >
-          Keep falling ↓
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSharing(true)}
+            aria-haspopup="dialog"
+            className="rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-soft transition hover:border-white/40"
+          >
+            Share
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-lavender/50 bg-lavender/15 px-4 py-2 text-sm font-medium text-soft transition hover:bg-lavender/25"
+          >
+            Keep falling ↓
+          </button>
+        </div>
 
         <div role="tablist" aria-label="Look up" className="relative mx-auto flex w-full max-w-sm rounded-full border border-white/15 bg-midnight-2/70 p-1">
           {PAGES.map((p, i) => {
@@ -128,6 +141,10 @@ export function LookUp({ session, onJump, onClose }: LookUpProps) {
           </motion.div>
         </AnimatePresence>
       </div>
+
+      <AnimatePresence>
+        {sharing ? <ShareSheet session={session} initial={page} onClose={() => setSharing(false)} /> : null}
+      </AnimatePresence>
     </motion.div>
   );
 }
