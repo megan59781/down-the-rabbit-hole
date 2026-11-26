@@ -175,12 +175,30 @@ export function habitTerritories(h: Habits, max = 3): Territory[] {
     .map((e) => e.territory);
 }
 
-/** What the AI is told in Astray: your style lean and a handful of recent picks and skips. */
-export function astrayProfile(h: Habits) {
+/**
+ * Your taste, as the AI is told it: your style lean and a handful of recent picks and skips.
+ * Deeper and Stranger lean gently towards it; Astray writes against it.
+ */
+export function tasteProfile(h: Habits) {
   if (h.choices < 2) return undefined;
   return {
     leans: styleHabits(h),
     picks: h.grabs.slice(-5).map((g) => g.text),
     skips: h.skips.slice(-5).map((s) => s.text),
   };
+}
+
+/**
+ * How likely you are to grab this question, 0..1, from its topic and style alone: the share of
+ * your choosing its territory gets, and how many of its style values are your usual ones.
+ */
+export function appeal(h: Habits, q: { territory?: Territory; style?: Style }): number {
+  if (h.choices < 2) return 0;
+  const lean = leanings(h);
+  const top = lean[0]?.share ?? 0;
+  const topic = top > 0 ? (lean.find((l) => l.territory === q.territory)?.share ?? 0) / top : 0;
+  const yours = styleHabits(h, 0.2);
+  const values = styleValues(q.style);
+  const style = yours.length ? values.filter((v) => yours.includes(v)).length / yours.length : 0;
+  return 0.5 * topic + 0.5 * style;
 }

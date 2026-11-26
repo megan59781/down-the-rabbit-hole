@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { embedderState } from "@/lib/astray/embedder";
-import { astrayProfile, getHabits, habitTerritories } from "@/lib/astray/habits";
+import { getHabits, habitTerritories, tasteProfile } from "@/lib/astray/habits";
 import { selectAstray } from "@/lib/astray/select";
 import { streamQuestions } from "@/lib/explore/client";
 import { sessionStore } from "@/lib/storage/sessions";
@@ -66,8 +66,9 @@ export function useExplorationSession(sessionId: string) {
             path: [],
             mode,
             exclude: childrenOf(s, nodeId).map((n) => n.text),
-            habits: astray ? habitTerritories(getHabits()) : [],
-            profile: astray ? astrayProfile(getHabits()) : undefined,
+            // Your taste: Deeper and Stranger lean gently towards it, Astray writes against it.
+            habits: habitTerritories(getHabits()),
+            profile: tasteProfile(getHabits()),
           },
           {
             onQuestion: (q) => {

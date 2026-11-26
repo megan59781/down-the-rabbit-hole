@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { warmEmbedder } from "@/lib/astray/embedder";
 import {
+  appeal,
   getHabits,
   getServerHabits,
   habitTerritories,
@@ -133,7 +134,16 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const { prefetch } = controller;
   useEffect(() => {
     if (!session || focusGrowing || risingIds.length === 0) return;
-    const timer = setTimeout(() => prefetch(risingIds, session.mode), 1200);
+    // Deeper and Stranger grow the ones you'll most likely grab first, so your kind of question
+    // opens instantly: the soft pull of a feed. Astray doesn't play favourites.
+    const order =
+      session.mode === "astray"
+        ? risingIds
+        : [...risingIds].sort((a, b) => {
+            const h = getHabits();
+            return appeal(h, getNode(session, b) ?? {}) - appeal(h, getNode(session, a) ?? {});
+          });
+    const timer = setTimeout(() => prefetch(order, session.mode), 1200);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [risingKey, focusGrowing, prefetch]);

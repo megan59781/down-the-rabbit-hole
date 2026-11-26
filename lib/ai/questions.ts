@@ -73,6 +73,24 @@ function againstTheGrain(habits: string[], profile?: Profile): string {
   return `\n\nThis is the anti-algorithm. A normal feed gives people more of what they like; you give them what they would usually scroll past, so they meet the parts of the world they keep avoiding. Not cruel, not dull on purpose, still genuinely worth wondering about, still growing from the question held. But clearly not their usual taste.\n${lines.join("\n")}`;
 }
 
+/**
+ * The soft feed for Deeper and Stranger: half the questions lean towards what this person
+ * tends to enjoy, half stay open, so it draws them in without closing the world down.
+ */
+function withTheGrain(habits: string[], profile?: Profile): string {
+  const taste: string[] = [];
+  if (profile?.leans.length) taste.push(`questions that are ${profile.leans.join(", ")}`);
+  if (habits.length) taste.push(`questions about ${habits.join(", ")}`);
+  if (!taste.length) return "";
+  const enjoyed = profile?.picks.length
+    ? `\nQuestions they recently enjoyed, for flavour only (never copy or echo them):\n${profile.picks
+        .slice(-3)
+        .map((q) => `- ${q}`)
+        .join("\n")}`
+    : "";
+  return `\n\nThis person tends to enjoy ${taste.join(", and ")}. Let two of the four questions lean gently towards that taste. Keep the other two open and different, so the fall never narrows to one flavour.${enjoyed}`;
+}
+
 export type QuestionEvent = { type: "care" } | { type: "question"; question: GeneratedQuestion };
 
 /**
@@ -100,7 +118,7 @@ export async function* streamQuestions(
   const excludeLine = input.exclude.length
     ? `\n\nAlready rising from this question (do not repeat or rephrase):\n${input.exclude.map((q) => `- ${q}`).join("\n")}`
     : "";
-  const grainLine = astray ? againstTheGrain(input.habits, input.profile) : "";
+  const grainLine = care ? "" : astray ? againstTheGrain(input.habits, input.profile) : withTheGrain(input.habits, input.profile);
   const direction = care ? CARE_DIRECTION : MODE_DIRECTION[input.mode];
 
   const seen = new Set([input.question, ...input.exclude].map((q) => q.toLowerCase()));

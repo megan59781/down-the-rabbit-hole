@@ -70,7 +70,10 @@ export function HabitMirror() {
           </p>
         </>
       )}
-      <p className="mt-2 text-xs text-muted/70">{MODEL_TEXT[model]} Kept only in this browser.</p>
+      <p className="mt-2 text-xs text-muted/70">
+        Deeper and Stranger lean gently towards what you like. Astray does the opposite.
+      </p>
+      <p className="mt-1 text-xs text-muted/70">{MODEL_TEXT[model]} Kept only in this browser.</p>
       {lean.length > 0 ? (
         <button
           type="button"

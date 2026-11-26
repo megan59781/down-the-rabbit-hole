@@ -41,6 +41,10 @@ npm run build
 
 The tunnel is a canvas animation; reduced-motion users get a slow, gentle version. Falls are saved in the browser (localStorage), so a refresh keeps everything.
 
+## A soft feed, and its opposite
+
+Deeper and Stranger behave like a gentle feed: once the hole has seen you choose a few times, the AI is told your taste and leans two of every four questions towards it (the other two stay open), and the next level is grown first for the questions you're most likely to grab, so your kind of question opens instantly. Astray does the opposite.
+
 ## Astray: the anti-algorithm
 
 A feed learns what you like and gives you more of it. Astray learns what you like and leads you away from it, and shows you that it's doing so.
@@ -72,7 +76,7 @@ All model calls happen server-side; the browser never sees the key.
 - **Safe by default:** every streamed line is validated on the server and again in the browser. Nothing model-generated is executed.
 - **Care first:** questions that sound like real distress (a keyword check, plus the model's own flag) get gentle, grounded questions whatever the mode, and a calm support note with Samaritans and findahelpline.com.
 - **Abuse and cost controls:** same-origin check, per-visitor rate limits, a daily cap, and a small output token cap. Limits are in memory (per server instance); use a shared store such as Upstash Redis before real public traffic.
-- **Privacy:** questions go to the AI to grow new ones and are never stored or logged on the server; falls and habits live in the browser's localStorage. In Astray, a few of your recent picks and skips are sent along with the question so the AI can write against them. Astray's embedding library and model weights come from jsDelivr and Hugging Face; no question text is sent to either.
+- **Privacy:** questions go to the AI to grow new ones and are never stored or logged on the server; falls and habits live in the browser's localStorage. Once you've chosen a few times, your style lean and a few recent picks and skips are sent along with the question, so the AI can lean towards your taste (Deeper, Stranger) or write against it (Astray). Astray's embedding library and model weights come from jsDelivr and Hugging Face; no question text is sent to either.
 - Requests run at low effort for responsiveness, with Anthropic's server-side refusal fallback enabled.
 
 ## Structure
