@@ -16,8 +16,6 @@ export type QuestionNode = {
   territory?: Territory;
   /** What kind of question it is (playful or serious, small or vast…), tagged by the AI. */
   style?: Style;
-  /** Astray only: why this question goes against your grain, e.g. "you usually skip serious ones". */
-  against?: string;
   children: string[];
   createdAt: string;
   /** The candidates Astray turned down last time questions rose from here (they were too "you"). */

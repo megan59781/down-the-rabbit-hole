@@ -43,7 +43,7 @@ function density(v: number[], points: number[][]): number {
 }
 
 export type Selection = {
-  chosen: (GeneratedQuestion & { against?: string })[];
+  chosen: GeneratedQuestion[];
   passedOver: GeneratedQuestion[];
   /** Whether meaning (the embedding model) was used, or tags alone. */
   byMeaning: boolean;
@@ -143,38 +143,9 @@ export async function selectAstray(input: {
     pool = pool.filter((k) => k !== best);
   }
 
-  // Each question says something different about why it's here, rather than the same line four times.
-  const used = new Set<string>();
   return {
-    chosen: picked.map((k) => ({ ...candidates[k], against: known ? whyAgainst(candidates[k], habits, used) : undefined })),
+    chosen: picked.map((k) => candidates[k]),
     passedOver: candidates.filter((_, k) => !picked.includes(k)),
     byMeaning: Boolean(vectors),
   };
-}
-
-/** Every honest reason this question goes against your grain, most pointed first. */
-function reasonsAgainst(q: GeneratedQuestion, habits: Habits): string[] {
-  const leanBy = styleLean(habits);
-  const unusual = (Object.keys(leanBy) as StyleAxis[])
-    .filter((axis) => Math.abs(leanBy[axis]!) >= 0.25)
-    .sort((a, b) => Math.abs(leanBy[b]!) - Math.abs(leanBy[a]!))
-    .flatMap((axis) => {
-      const value = q.style?.[axis];
-      const yourSide = STYLE_AXES[axis][leanBy[axis]! > 0 ? 1 : 0];
-      return value && value !== yourSide ? [value] : [];
-    });
-  const reasons: string[] = [];
-  const share = leanings(habits).find((l) => l.territory === q.territory)?.share ?? 0;
-  if (q.territory && share < 0.08) reasons.push(`you never go near ${q.territory}`);
-  unusual.forEach((v) => reasons.push(`you usually skip ${v} ones`));
-  if (unusual.length >= 2) reasons.push(`you usually skip ${unusual[0]}, ${unusual[1]} ones`);
-  return reasons;
-}
-
-/** A short reason for this question, preferring one the other questions in the set haven't used. */
-function whyAgainst(q: GeneratedQuestion, habits: Habits, used: Set<string>): string | undefined {
-  const reasons = reasonsAgainst(q, habits);
-  const reason = reasons.find((r) => !used.has(r)) ?? reasons[0];
-  if (reason) used.add(reason);
-  return reason;
 }

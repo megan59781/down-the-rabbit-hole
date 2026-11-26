@@ -34,7 +34,7 @@ export function risingFrom(session: ExplorationSession, id: string, mode: Explor
 export function addQuestions(
   session: ExplorationSession,
   parentId: string,
-  generated: (GeneratedQuestion & { against?: string })[],
+  generated: GeneratedQuestion[],
   mode: ExplorationMode,
 ): ExplorationSession {
   const existing = new Set(childrenOf(session, parentId).map((n) => n.text.toLowerCase()));
@@ -50,7 +50,6 @@ export function addQuestions(
       whisper: q.whisper,
       territory: q.territory,
       style: q.style,
-      against: q.against,
       mode,
       children: [],
       createdAt: now,

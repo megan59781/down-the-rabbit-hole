@@ -463,14 +463,6 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
             {node.whisper}
           </span>
         ) : null}
-        {node.against ? (
-          <span
-            className="mt-1 block text-[0.65rem] tracking-[0.12em] text-lavender uppercase sm:text-xs"
-            style={{ textShadow: "0 1px 3px rgb(10 8 18 / 0.9)" }}
-          >
-            ⇝ {node.against}
-          </span>
-        ) : null}
       </motion.span>
     </motion.button>
   );
