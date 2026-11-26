@@ -94,23 +94,45 @@ All model calls happen server-side; the browser never sees the key.
 ## Structure
 
 ```text
-app/                       routes, layout, global theme (globals.css), favicon (icon.svg)
-app/api/questions          question (or your answer) → streamed questions (NDJSON)
-app/api/rabbit             the rabbit's streamed self-test → a question only you can answer
-app/explore/[sessionId]    the fall (client-only; falls live in localStorage)
-components/branding        Logo, RabbitIcon, RabbitGuide (loader, ears, footprints)
-components/landing         LandingPage, BeginJourney, ThoughtInput
-components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, HabitMirror, AstrayGhosts, RabbitAsks, Tour, CareNote, useSteer
-lib/astray                 territories, habit model, on-device embedder, the inverted recommender
-public/astray              the embedding Web Worker
-components/landing/JumpIn  the plunge from the landing page into the hole
-lib/audio                  FallAudio (Web Audio synth) + useFallAudio
-lib/ai                     provider abstraction, prompts, generators (server-only)
-lib/schemas                Zod schemas for requests and streamed events
-lib/session                question tree helpers + useExplorationSession hook
-lib/storage                SessionStore abstraction (localStorage implementation)
-lib/explore/client.ts      browser-side calls to the API routes
-lib/content                landing page example prompts
+app/
+├── api/
+│   ├── questions/          # Streams questions (or answers) as NDJSON
+│   └── rabbit/             # Streams the rabbit's self-test: a question only you can answer
+├── explore/
+│   └── [sessionId]/        # Client-only exploration route; falls persist in localStorage
+├── globals.css             # Global styles and theme
+├── icon.svg                # App favicon
+└── layout.tsx              # Root layout
+
+components/
+├── branding/               # Logo, RabbitIcon, RabbitGuide (loader, ears, footprints)
+├── landing/                # LandingPage, BeginJourney, ThoughtInput, JumpIn
+└── fall/                   # Core exploration experience
+    ├── FallView
+    ├── Tunnel               # Canvas-based tunnel
+    ├── GravityToggle
+    ├── LookUp
+    ├── HabitMirror
+    ├── AstrayGhosts
+    ├── RabbitAsks
+    ├── Tour
+    ├── CareNote
+    └── useSteer
+
+lib/
+├── astray/                 # Territories, habit model, on-device embedder,
+│                           # and the inverted recommender
+├── audio/                  # FallAudio (Web Audio synth) and useFallAudio
+├── ai/                     # Provider abstraction, prompts, generators (server-only)
+├── schemas/                # Zod schemas for requests and streamed events
+├── session/                # Question tree helpers and useExplorationSession hook
+├── storage/                # SessionStore abstraction (localStorage implementation)
+├── explore/
+│   └── client.ts            # Browser-side API calls
+└── content/                # Landing page example prompts
+
+public/
+└── astray/                 # Embedding Web Worker
 ```
 
 ## Brand tokens
