@@ -24,7 +24,7 @@ export function HabitMirror() {
   const style = Object.entries(styleLean(habits)) as [StyleAxis, number][];
 
   return (
-    <section aria-label="Your habits" className="mt-12 w-full max-w-md rounded-2xl border border-lavender/25 bg-midnight-2/60 p-5">
+    <section aria-label="Your habits" className="w-full max-w-md rounded-2xl border border-lavender/25 bg-midnight-2/60 p-5 sm:p-6">
       <p className="font-display text-xs tracking-[0.3em] text-lavender uppercase">⇝ What the hole thinks you like</p>
       {lean.length === 0 ? (
         <p className="mt-3 text-sm text-muted">Nothing yet. Every question you grab teaches it a little.</p>

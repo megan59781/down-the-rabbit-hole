@@ -33,7 +33,7 @@ npm run build
    - **✦ Stranger**: the tunnel twists into a pink spiral and tips sideways. Other worlds, odd angles.
    - **⇝ Astray**: the anti-algorithm. The hole leads you away from your own habits (see below).
 5. **Scroll or swipe** to fall faster; stop and you slow to a hover.
-6. **↑ Look up** pauses the fall and shows the path you took, with the questions you passed beside it. Tap any to fall back into it.
+6. **↑ Look up** pauses the fall. Two pages: **Your path** (the way down, with the questions you passed beside each step; tap any to fall back into it) and **About you** (what the hole has learned about your taste).
 7. **↻ Let others rise** swaps in a fresh set.
 8. **Steer**: tilt your phone (or move the mouse on desktop) to lean the hole; the questions drift the other way.
 9. **Depth**: every level down is darker and slower, and the rabbit flashes past more often.

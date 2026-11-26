@@ -230,8 +230,8 @@ export function FallView({ sessionId }: { sessionId: string }) {
             aria-label={sound.soundOn ? "Turn sound off" : "Turn sound on"}
             title={sound.soundOn ? "Sound on" : "Sound off"}
             className={clsx(
-              "grid h-8 w-8 place-items-center rounded-full border bg-midnight/60 text-sm backdrop-blur transition",
-              sound.soundOn ? "border-lavender/60 text-soft" : "border-white/15 text-muted hover:text-soft",
+              "grid h-9 w-9 place-items-center rounded-full border bg-midnight/70 text-sm backdrop-blur transition",
+              sound.soundOn ? "border-lavender/60 text-soft" : "border-white/20 text-muted hover:text-soft",
             )}
           >
             <span aria-hidden>{sound.soundOn ? "🔊" : "🔇"}</span>
@@ -239,15 +239,16 @@ export function FallView({ sessionId }: { sessionId: string }) {
           <button
             type="button"
             onClick={() => setLookingUp(true)}
-            className="rounded-full border border-white/15 bg-midnight/60 px-3 py-1.5 text-xs text-soft backdrop-blur hover:border-lavender/60"
+            className="rounded-full border border-lavender/50 bg-lavender/15 px-3.5 py-2 text-sm font-medium text-soft backdrop-blur transition hover:bg-lavender/25"
           >
             ↑ Look up
           </button>
           <Link
             href="/"
-            className="hidden rounded-full border border-white/10 px-3 py-1.5 text-xs text-muted hover:text-soft sm:inline-block"
+            aria-label="New question"
+            className="rounded-full border border-white/20 bg-midnight/70 px-3.5 py-2 text-sm text-soft backdrop-blur transition hover:border-white/40"
           >
-            New question
+            <span aria-hidden>+ </span>New<span className="hidden sm:inline"> question</span>
           </Link>
         </div>
       </header>
