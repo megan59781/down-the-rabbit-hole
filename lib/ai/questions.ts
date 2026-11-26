@@ -91,6 +91,18 @@ function withTheGrain(habits: string[], profile?: Profile): string {
   return `\n\nThis person tends to enjoy ${taste.join(", and ")}. Let two of the four questions lean gently towards that taste. Keep the other two open and different, so the fall never narrows to one flavour.${enjoyed}`;
 }
 
+/**
+ * What the person is holding. Usually a question; after they answer the rabbit, it's their own
+ * words, which only ever grow more questions: never a reply, never a verdict on their life.
+ */
+function heldBlock(input: { question: string; answer?: { asked: string; said: string } }): string {
+  if (!input.answer) return `<question>${input.question}</question>`;
+  return `The rabbit asked them a question only they could answer, and they answered it. Their answer is now what they're holding.
+Never reply to, praise, judge or interpret what they said, and never answer anything. Don't guess at their feelings or life. Turn their own words into new questions that open what they said outwards, each growing from something they actually said.
+<asked>${input.answer.asked}</asked>
+<question>${input.answer.said}</question>`;
+}
+
 export type QuestionEvent = { type: "care" } | { type: "question"; question: GeneratedQuestion };
 
 /**
@@ -106,14 +118,17 @@ export async function* streamQuestions(
     exclude: string[];
     habits: string[];
     profile?: Profile;
+    /** The rabbit asked them something and this is what they said. */
+    answer?: { asked: string; said: string };
   },
   signal?: AbortSignal,
 ): AsyncGenerator<QuestionEvent> {
-  const care = needsCare(input.question);
+  const care = needsCare(input.question) || (input.answer ? needsCare(input.answer.said) : false);
   if (care) yield { type: "care" };
 
   // Someone in distress gets four gentle questions, never a field of strange candidates.
-  const astray = input.mode === "astray" && !care;
+  // An answer to the rabbit is theirs: it grows four questions directly, no steering field.
+  const astray = input.mode === "astray" && !care && !input.answer;
   const count = astray ? ASTRAY_CANDIDATES : RISING;
   const excludeLine = input.exclude.length
     ? `\n\nAlready rising from this question (do not repeat or rephrase):\n${input.exclude.map((q) => `- ${q}`).join("\n")}`
@@ -173,7 +188,7 @@ export async function* streamQuestions(
 
   for await (const delta of provider.streamText({
     system: systemFor(count),
-    prompt: `${direction}${grainLine}${pathBlock(input.path)}${excludeLine}\n\n<question>${input.question}</question>`,
+    prompt: `${direction}${grainLine}${pathBlock(input.path)}${excludeLine}\n\n${heldBlock(input)}`,
     signal,
   })) {
     buffer += delta;

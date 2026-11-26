@@ -7,7 +7,7 @@ import { selectAstray } from "@/lib/astray/select";
 import { streamQuestions } from "@/lib/explore/client";
 import { sessionStore } from "@/lib/storage/sessions";
 import type { ExplorationMode, ExplorationSession, GeneratedQuestion } from "@/lib/types";
-import { addQuestions, childrenOf, getNode, pathTo, risingFrom, setPassedOver } from "./tree";
+import { addQuestions, addRabbitAnswer, childrenOf, getNode, pathTo, risingFrom, setPassedOver } from "./tree";
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const next = { ...record };
@@ -56,12 +56,14 @@ export function useExplorationSession(sessionId: string) {
       try {
         const s = sessionRef.current;
         const node = getNode(s, nodeId)!;
-        const astray = mode === "astray";
+        // An answer to the rabbit grows its own four questions directly: no steering field.
+        const astray = mode === "astray" && node.answer === undefined;
         const field: GeneratedQuestion[] = [];
         let care = false;
         await streamQuestions(
           {
-            question: node.text,
+            question: node.answer ?? node.text,
+            answer: node.answer !== undefined ? { asked: node.text, said: node.answer } : undefined,
             // Each new set grows only from the question you're holding, not the steps before it.
             path: [],
             mode,
@@ -170,7 +172,20 @@ export function useExplorationSession(sessionId: string) {
     [commit, ensureRising],
   );
 
-  return { session, pending, errors, candidates, grow, dive, setMode, ensureRising, prefetch };
+  /** You answered the rabbit: your words become the next step down, and questions grow from them. */
+  const answerRabbit = useCallback(
+    (asked: string, said: string) => {
+      const s = sessionRef.current;
+      if (!s) return;
+      queue.current = [];
+      const { session: next, id } = addRabbitAnswer(s, s.focusId, asked, said, s.mode);
+      commit(() => ({ ...next, focusId: id }));
+      ensureRising(id);
+    },
+    [commit, ensureRising],
+  );
+
+  return { session, pending, errors, candidates, grow, dive, setMode, ensureRising, prefetch, answerRabbit };
 }
 
 export type ExplorationController = ReturnType<typeof useExplorationSession>;

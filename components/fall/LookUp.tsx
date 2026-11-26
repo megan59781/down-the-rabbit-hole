@@ -4,6 +4,7 @@ import { clsx } from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Footprints } from "@/components/branding/RabbitGuide";
+import { RabbitIcon } from "@/components/branding/RabbitIcon";
 import { childrenOf, pathTo } from "@/lib/session/tree";
 import type { ExplorationSession } from "@/lib/types";
 import { HabitMirror } from "./HabitMirror";
@@ -136,7 +137,7 @@ function PathPage({ session, onJump, onClose }: LookUpProps) {
         {path.map((node, i) => {
           const passed = node.parentId
             ? childrenOf(session, node.parentId)
-                .filter((s) => s.id !== node.id)
+                .filter((s) => s.id !== node.id && s.answer === undefined)
                 .slice(-4)
             : [];
           const current = i === path.length - 1;
@@ -179,10 +180,22 @@ function PathPage({ session, onJump, onClose }: LookUpProps) {
                     : "border-white/15 hover:border-white/40",
                 )}
               >
-                <span className={clsx("text-xs", i === 0 ? "text-lavender" : MODE_TEXT[node.mode])}>
-                  {i === 0 ? "◯" : MODE_GLYPH[node.mode]}
-                </span>
-                <span className={clsx(i === 0 ? "font-serif text-lg" : "text-sm", "text-soft")}>{node.text}</span>
+                {node.answer !== undefined ? (
+                  <>
+                    <RabbitIcon className="h-4 w-4 shrink-0 text-lavender" aria-hidden />
+                    <span className="flex flex-col text-left">
+                      <span className="text-xs text-muted italic">{node.text}</span>
+                      <span className="font-serif text-sm text-soft">&ldquo;{node.answer}&rdquo;</span>
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className={clsx("text-xs", i === 0 ? "text-lavender" : MODE_TEXT[node.mode])}>
+                      {i === 0 ? "◯" : MODE_GLYPH[node.mode]}
+                    </span>
+                    <span className={clsx(i === 0 ? "font-serif text-lg" : "text-sm", "text-soft")}>{node.text}</span>
+                  </>
+                )}
                 {current ? <Footprints className="h-3.5 w-3.5 shrink-0 text-lavender" /> : null}
               </button>
             </motion.li>

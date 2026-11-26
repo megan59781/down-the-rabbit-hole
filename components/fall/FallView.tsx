@@ -3,7 +3,7 @@
 import { clsx } from "clsx";
 import { AnimatePresence, motion, useReducedMotion, useTransform } from "framer-motion";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { warmEmbedder } from "@/lib/astray/embedder";
 import {
   appeal,
@@ -26,6 +26,7 @@ import { AstrayGhosts } from "./AstrayGhosts";
 import { CareNote } from "./CareNote";
 import { GravityToggle } from "./GravityToggle";
 import { LookUp } from "./LookUp";
+import { RabbitAsks } from "./RabbitAsks";
 import { Tunnel } from "./Tunnel";
 import { useSteer } from "./useSteer";
 
@@ -83,6 +84,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const [diving, setDiving] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
   const [lookingUp, setLookingUp] = useState(false);
+  const [rabbitOpen, setRabbitOpen] = useState(false);
   const [hasDived, setHasDived] = useState(false);
   const started = useRef(false);
   const sound = useFallAudio(session?.mode ?? "deeper");
@@ -182,7 +184,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
   // Each question keeps the slot of the one it replaces, so new ones streaming in never shuffle the rest.
   const slotOf = (q: QuestionNode) =>
     childrenOf(session, focus.id)
-      .filter((n) => n.mode === mode)
+      .filter((n) => n.mode === mode && n.answer === undefined)
       .indexOf(q) % slots.length;
 
   const grab = (id: string) => {
@@ -198,6 +200,21 @@ export function FallView({ sessionId }: { sessionId: string }) {
       controller.dive(id);
       setDiving(null);
     }, reduce ? 150 : DIVE_MS);
+  };
+
+  // You caught the rabbit: the fall holds still while it asks you something.
+  const catchRabbit = () => {
+    setRabbitOpen(true);
+    sound.chime(mode);
+  };
+
+  // Your answer becomes the next step down, and new questions grow from it.
+  const fallIntoAnswer = (asked: string, said: string) => {
+    setRabbitOpen(false);
+    setBurst((b) => b + 1);
+    sound.whoosh();
+    setHasDived(true);
+    controller.answerRabbit(asked, said);
   };
 
   const jump = (id: string) => {
@@ -257,7 +274,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
         <Tunnel
           mode={mode}
           burst={burst}
-          paused={lookingUp}
+          paused={lookingUp || rabbitOpen}
           onSpeed={sound.setSpeed}
           depth={depth}
           steer={steering.steer}
@@ -269,7 +286,13 @@ export function FallView({ sessionId }: { sessionId: string }) {
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,rgb(4_3_10)_100%)] transition-opacity duration-[2000ms]"
           style={{ opacity: Math.min(depth / 8, 1) * 0.85 }}
         />
-        <RabbitSightings reduce={reduce} depth={depth} />
+        <RabbitSightings
+          reduce={reduce}
+          depth={depth}
+          // The rabbit leaves you be when things feel heavy, and while you're busy elsewhere.
+          catchable={!session.care && !lookingUp && !rabbitOpen && !diving}
+          onCatch={catchRabbit}
+        />
 
         {/* The question you're holding, at the heart of the hole. */}
         <motion.div
@@ -286,15 +309,34 @@ export function FallView({ sessionId }: { sessionId: string }) {
               className="max-w-[80vw] text-center sm:max-w-xl"
               style={{ marginTop: "-4dvh" }}
             >
-              <p className="text-[0.65rem] tracking-[0.3em] text-muted uppercase">
-                {depth === 0 ? "You're holding" : `${depth} down · you're holding`}
-              </p>
-              <h1
-                className="mt-3 font-serif text-2xl leading-tight text-soft sm:text-4xl"
-                style={{ textShadow: `0 0 30px rgb(${GLOW[focus.mode]} / 0.35)` }}
-              >
-                {focus.text}
-              </h1>
+              {focus.answer !== undefined ? (
+                <>
+                  {/* Your own words, held like any question: they only ever grow more questions. */}
+                  <p className="mx-auto max-w-md text-xs text-muted italic">
+                    <RabbitIcon className="mr-1 inline h-4 w-4 align-[-3px] text-lavender" />
+                    {focus.text}
+                  </p>
+                  <h1
+                    className="mt-3 font-serif text-2xl leading-tight text-soft sm:text-4xl"
+                    style={{ textShadow: `0 0 30px rgb(${GLOW[focus.mode]} / 0.35)` }}
+                  >
+                    &ldquo;{focus.answer}&rdquo;
+                  </h1>
+                  <p className="mt-2 text-[0.65rem] tracking-[0.3em] text-muted uppercase">You told the rabbit</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[0.65rem] tracking-[0.3em] text-muted uppercase">
+                    {depth === 0 ? "You're holding" : `${depth} down · you're holding`}
+                  </p>
+                  <h1
+                    className="mt-3 font-serif text-2xl leading-tight text-soft sm:text-4xl"
+                    style={{ textShadow: `0 0 30px rgb(${GLOW[focus.mode]} / 0.35)` }}
+                  >
+                    {focus.text}
+                  </h1>
+                </>
+              )}
             </motion.div>
           </AnimatePresence>
         </motion.div>
@@ -372,6 +414,16 @@ export function FallView({ sessionId }: { sessionId: string }) {
       />
 
       <AnimatePresence>{session.care ? <CareNote /> : null}</AnimatePresence>
+
+      <AnimatePresence>
+        {rabbitOpen ? (
+          <RabbitAsks
+            holding={focus.answer ?? focus.text}
+            onAnswer={fallIntoAnswer}
+            onClose={() => setRabbitOpen(false)}
+          />
+        ) : null}
+      </AnimatePresence>
 
       <AnimatePresence>
         {lookingUp ? <LookUp session={session} onJump={jump} onClose={() => setLookingUp(false)} /> : null}
@@ -479,46 +531,143 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
   );
 }
 
-/** Every so often the rabbit flashes past, just ahead of you. */
-function RabbitSightings({ reduce, depth }: { reduce: boolean; depth: number }) {
+const CAUGHT_KEY = "rabbit-hole:caught";
+
+/**
+ * Every so often the rabbit flashes past, just ahead of you. Catch it (tap it, or press R while
+ * it's there) and it stops to ask you something. Reduced motion: it sits still for a moment instead.
+ */
+function RabbitSightings({
+  reduce,
+  depth,
+  catchable,
+  onCatch,
+}: {
+  reduce: boolean;
+  depth: number;
+  catchable: boolean;
+  onCatch: () => void;
+}) {
   const [sighting, setSighting] = useState<{ key: number; angle: number } | null>(null);
+  const [hint, setHint] = useState(false);
   const depthRef = useRef(depth);
   useEffect(() => {
     depthRef.current = depth;
   }, [depth]);
 
+  // Until you've caught it once, it whispers "catch me".
   useEffect(() => {
-    if (reduce) return;
+    const timer = setTimeout(() => {
+      try {
+        setHint(window.localStorage.getItem(CAUGHT_KEY) !== "1");
+      } catch {
+        setHint(true);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     const schedule = (delay: number) => {
       timer = setTimeout(() => {
         setSighting({ key: Date.now(), angle: Math.random() * Math.PI * 2 });
         // The deeper you are, the more often the rabbit shows itself.
-        const gap = Math.max(4000, 16000 - depthRef.current * 1800);
+        const gap = Math.max(5000, 16000 - depthRef.current * 1800);
         schedule(gap + Math.random() * gap * 0.6);
       }, delay);
     };
     schedule(6000);
     return () => clearTimeout(timer);
-  }, [reduce]);
+  }, []);
 
-  if (!sighting) return null;
+  const duration = reduce ? 5 : catchable ? 2.8 : 1.5;
+  useEffect(() => {
+    if (!sighting) return;
+    const timer = setTimeout(() => setSighting(null), duration * 1000);
+    return () => clearTimeout(timer);
+  }, [sighting, duration]);
+
+  const caught = useCallback(() => {
+    setSighting(null);
+    setHint(false);
+    try {
+      window.localStorage.setItem(CAUGHT_KEY, "1");
+    } catch {
+      // Fine: the hint just shows again next visit.
+    }
+    onCatch();
+  }, [onCatch]);
+
+  // Keyboard: press R while the rabbit is visible.
+  useEffect(() => {
+    if (!sighting || !catchable) return;
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && e.target.closest("input, textarea");
+      if (!typing && (e.key === "r" || e.key === "R")) caught();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sighting, catchable, caught]);
+
+  if (!sighting || (reduce && !catchable)) return null;
+  const end = { x: VANISH.x + Math.cos(sighting.angle) * 70, y: VANISH.y + Math.sin(sighting.angle) * 70 };
+  const rest = { x: VANISH.x + Math.cos(sighting.angle) * 30, y: VANISH.y + Math.sin(sighting.angle) * 26 };
+  const rabbit = <RabbitIcon className="h-10 w-10" />;
+
+  if (!catchable) {
+    return (
+      <motion.div
+        key={sighting.key}
+        aria-hidden
+        className="pointer-events-none absolute z-0 -translate-x-1/2 -translate-y-1/2 text-soft"
+        initial={{ left: `${VANISH.x}%`, top: `${VANISH.y}%`, scale: 0.2, opacity: 0, rotate: 0 }}
+        animate={{
+          left: `${end.x}%`,
+          top: `${end.y}%`,
+          scale: 2.4,
+          opacity: [0, 0.8, 0],
+          rotate: sighting.angle > Math.PI ? -25 : 25,
+        }}
+        transition={{ duration: 1.5, ease: "easeIn" }}
+      >
+        {rabbit}
+      </motion.div>
+    );
+  }
+
   return (
-    <motion.div
+    <motion.button
       key={sighting.key}
-      aria-hidden
-      className="pointer-events-none absolute z-0 -translate-x-1/2 -translate-y-1/2 text-soft"
-      initial={{ left: `${VANISH.x}%`, top: `${VANISH.y}%`, scale: 0.2, opacity: 0, rotate: 0 }}
-      animate={{
-        left: `${VANISH.x + Math.cos(sighting.angle) * 70}%`,
-        top: `${VANISH.y + Math.sin(sighting.angle) * 70}%`,
-        scale: 2.4,
-        opacity: [0, 0.8, 0],
-        rotate: sighting.angle > Math.PI ? -25 : 25,
-      }}
-      transition={{ duration: 1.5, ease: "easeIn" }}
+      type="button"
+      onClick={caught}
+      aria-label="Catch the rabbit (or press R)"
+      className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full p-4 text-soft focus-visible:outline-2 focus-visible:outline-lavender"
+      initial={
+        reduce
+          ? { left: `${rest.x}%`, top: `${rest.y}%`, opacity: 0 }
+          : { left: `${VANISH.x}%`, top: `${VANISH.y}%`, scale: 0.2, opacity: 0, rotate: 0 }
+      }
+      animate={
+        reduce
+          ? { opacity: [0, 1, 1, 0] }
+          : {
+              // Slower than a glimpse, so it can be caught: out of the dark, a pause to look at you, gone.
+              left: [`${VANISH.x}%`, `${rest.x}%`, `${rest.x}%`, `${end.x}%`],
+              top: [`${VANISH.y}%`, `${rest.y}%`, `${rest.y}%`, `${end.y}%`],
+              scale: [0.2, 1.4, 1.5, 2.6],
+              opacity: [0, 1, 1, 0],
+              rotate: [0, 0, sighting.angle > Math.PI ? -8 : 8, sighting.angle > Math.PI ? -25 : 25],
+            }
+      }
+      transition={{ duration, times: [0, 0.3, 0.7, 1], ease: "easeInOut" }}
     >
-      <RabbitIcon className={clsx("h-10 w-10")} />
-    </motion.div>
+      <span className="block drop-shadow-[0_0_12px_rgb(183_154_255/0.9)]">{rabbit}</span>
+      {hint ? (
+        <span className="absolute top-full left-1/2 -translate-x-1/2 font-display text-[0.6rem] tracking-[0.2em] whitespace-nowrap text-lavender uppercase">
+          catch me
+        </span>
+      ) : null}
+    </motion.button>
   );
 }

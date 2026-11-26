@@ -1,26 +1,23 @@
-// Browser-side call to the questions API: reads the stream line by line, validating each event.
-import { QuestionEventSchema } from "@/lib/schemas";
+// Browser-side calls to the API: each reads a stream line by line, validating every event.
+import type { z } from "zod";
+import { QuestionEventSchema, RabbitEventSchema } from "@/lib/schemas";
 import type { ExplorationMode, GeneratedQuestion } from "@/lib/types";
 
 const CLIENT_TIMEOUT_MS = 70_000;
 
-export async function streamQuestions(
-  input: {
-    question: string;
-    path: string[];
-    mode: ExplorationMode;
-    exclude: string[];
-    habits?: string[];
-    profile?: { leans: string[]; picks: string[]; skips: string[] };
-  },
-  handlers: { onQuestion: (q: GeneratedQuestion) => void; onCare: () => void },
-): Promise<number> {
+/** POST `body` to `url` and hand each valid NDJSON event to `onEvent`. Server errors throw. */
+async function streamEvents<T extends { type: string }>(
+  url: string,
+  body: unknown,
+  schema: z.ZodType<T>,
+  onEvent: (event: T) => void,
+): Promise<void> {
   let response: Response;
   try {
-    response = await fetch("/api/questions", {
+    response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
     });
   } catch (error) {
@@ -35,7 +32,6 @@ export async function streamQuestions(
 
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
-  let count = 0;
   const handle = (line: string) => {
     if (!line.trim()) return;
     let raw: unknown;
@@ -44,17 +40,11 @@ export async function streamQuestions(
     } catch {
       return;
     }
-    const parsed = QuestionEventSchema.safeParse(raw);
+    const parsed = schema.safeParse(raw);
     if (!parsed.success) return;
-    const event = parsed.data;
-    if (event.type === "question") {
-      count++;
-      handlers.onQuestion(event.question);
-    } else if (event.type === "care") {
-      handlers.onCare();
-    } else if (event.type === "error") {
-      throw new Error(event.error);
-    }
+    const event = parsed.data as T & { error?: string };
+    if (event.type === "error") throw new Error(event.error ?? "Something went wrong.");
+    onEvent(event);
   };
 
   try {
@@ -74,6 +64,41 @@ export async function streamQuestions(
     if (error instanceof TypeError || error instanceof DOMException) throw new Error("The connection dropped. Please try again.");
     throw error;
   }
+}
+
+export async function streamQuestions(
+  input: {
+    question: string;
+    path: string[];
+    mode: ExplorationMode;
+    exclude: string[];
+    habits?: string[];
+    profile?: { leans: string[]; picks: string[]; skips: string[] };
+    answer?: { asked: string; said: string };
+  },
+  handlers: { onQuestion: (q: GeneratedQuestion) => void; onCare: () => void },
+): Promise<number> {
+  let count = 0;
+  await streamEvents("/api/questions", input, QuestionEventSchema, (event) => {
+    if (event.type === "question") {
+      count++;
+      handlers.onQuestion(event.question);
+    } else if (event.type === "care") {
+      handlers.onCare();
+    }
+  });
   if (count === 0) throw new Error("The questions got lost on the way. Please try again.");
   return count;
+}
+
+export type RabbitTestEvent = z.infer<typeof RabbitEventSchema>;
+
+/** Catch the rabbit: streams its self-test, ending with which candidate it will ask. */
+export async function streamRabbit(question: string, onEvent: (event: RabbitTestEvent) => void): Promise<void> {
+  let asked = false;
+  await streamEvents("/api/rabbit", { question }, RabbitEventSchema, (event) => {
+    if (event.type === "ask") asked = true;
+    onEvent(event);
+  });
+  if (!asked) throw new Error("The rabbit lost its question. Please try again.");
 }

@@ -12,6 +12,11 @@ export type QuestionNode = {
   whisper?: string;
   /** The direction of the fall this question rose from (the root counts as deeper). */
   mode: ExplorationMode;
+  /**
+   * Set when this step is the rabbit's question to you: `text` is what it asked, `answer` is what
+   * you said. New questions grow from your answer.
+   */
+  answer?: string;
   /** What kind of thing the question is about, tagged by the AI. */
   territory?: Territory;
   /** What kind of question it is (playful or serious, small or vast…), tagged by the AI. */

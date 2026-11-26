@@ -26,7 +26,8 @@ export function childrenOf(session: ExplorationSession, id: string): QuestionNod
 /** The questions currently rising from a node in a direction: the newest set of four. */
 export function risingFrom(session: ExplorationSession, id: string, mode: ExplorationMode, count = 4) {
   return childrenOf(session, id)
-    .filter((n) => n.mode === mode)
+    // Your answers to the rabbit are steps in the path, never questions rising beside you.
+    .filter((n) => n.mode === mode && n.answer === undefined)
     .slice(-count);
 }
 
@@ -83,4 +84,18 @@ export function contextPath(session: ExplorationSession, id: string, limit = 5):
 /** Remember what Astray turned down when questions last rose from a node. */
 export function setPassedOver(session: ExplorationSession, nodeId: string, passedOver: QuestionNode["passedOver"]) {
   return { ...session, nodes: session.nodes.map((n) => (n.id === nodeId ? { ...n, passedOver } : n)) };
+}
+
+/** You answered the rabbit while holding `parentId`: your answer becomes the next step down. */
+export function addRabbitAnswer(
+  session: ExplorationSession,
+  parentId: string,
+  asked: string,
+  said: string,
+  mode: ExplorationMode,
+): { session: ExplorationSession; id: string } {
+  const id = uid("r-");
+  const node: QuestionNode = { id, parentId, text: asked, answer: said, mode, children: [], createdAt: new Date().toISOString() };
+  const nodes = session.nodes.map((n) => (n.id === parentId ? { ...n, children: [...n.children, id] } : n));
+  return { session: { ...session, nodes: [...nodes, node] }, id };
 }

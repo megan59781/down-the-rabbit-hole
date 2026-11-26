@@ -37,13 +37,23 @@ npm run build
 7. **↻ Let others rise** swaps in a fresh set.
 8. **Steer**: tilt your phone (or move the mouse on desktop) to lean the hole; the questions drift the other way.
 9. **Depth**: every level down is darker and slower, and the rabbit flashes past more often.
-10. **🔊 Sound** (off until you switch it on, then remembered): wind that follows your falling speed, a cold hum for Deeper, a warbling shimmer for Stranger, an unsettled, wandering drone for Astray, and bells when you grab a question or new ones rise. All synthesised live with the Web Audio API.
+10. **Catch the rabbit** (tap it, or press R while it's there) and it asks *you* something (see below).
+11. **🔊 Sound** (off until you switch it on, then remembered): wind that follows your falling speed, a cold hum for Deeper, a warbling shimmer for Stranger, an unsettled, wandering drone for Astray, and bells when you grab a question or new ones rise. All synthesised live with the Web Audio API.
 
 The tunnel is a canvas animation; reduced-motion users get a slow, gentle version. Falls are saved in the browser (localStorage), so a refresh keeps everything.
 
 ## A soft feed, and its opposite
 
 Deeper and Stranger behave like a gentle feed: once the hole has seen you choose a few times, the AI is told your taste and leans two of every four questions towards it (the other two stay open), and the next level is grown first for the questions you're most likely to grab, so your kind of question opens instantly. Astray does the opposite.
+
+## Catch the rabbit: the AI asks, you answer
+
+Every so often the rabbit flashes past. Catch it and the fall holds still while it asks you a question only you can answer, growing from the one you're holding.
+
+1. **Write** (`lib/ai/rabbit.ts`): one call writes three candidate questions from your own life, senses, memories, home or people. Light, never intrusive, never asking for anything identifying.
+2. **Test**: a second call tries to answer each one for a stranger and judges whether its attempt is knowledge or a guess. Only a question the AI *failed* on is asked; if it could answer all three, it writes more personal ones. You watch this happen: each candidate, the rabbit's guess, and the one it couldn't answer.
+3. **Answer** in a sentence, or "Not this one". It never replies: your answer becomes the thing you're holding, and new questions grow out of your own words. In Look up it appears as a rabbit step.
+4. **Care**: the rabbit leaves you be if anything in the fall sounds like real distress, and answers get the same care check as questions. Answers stay in this browser.
 
 ## Astray: the anti-algorithm
 
@@ -83,11 +93,12 @@ All model calls happen server-side; the browser never sees the key.
 
 ```text
 app/                       routes, layout, global theme (globals.css), favicon (icon.svg)
-app/api/questions          question → streamed questions (NDJSON)
+app/api/questions          question (or your answer) → streamed questions (NDJSON)
+app/api/rabbit             the rabbit's streamed self-test → a question only you can answer
 app/explore/[sessionId]    the fall (client-only; falls live in localStorage)
 components/branding        Logo, RabbitIcon, RabbitGuide (loader, ears, footprints)
 components/landing         LandingPage, BeginJourney, ThoughtInput
-components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, HabitMirror, AstrayGhosts, CareNote, useSteer
+components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, HabitMirror, AstrayGhosts, RabbitAsks, CareNote, useSteer
 lib/astray                 territories, habit model, on-device embedder, the inverted recommender
 public/astray              the embedding Web Worker
 components/landing/JumpIn  the plunge from the landing page into the hole
