@@ -5,7 +5,14 @@ import type { ExplorationMode, GeneratedQuestion } from "@/lib/types";
 const CLIENT_TIMEOUT_MS = 70_000;
 
 export async function streamQuestions(
-  input: { question: string; path: string[]; mode: ExplorationMode; exclude: string[] },
+  input: {
+    question: string;
+    path: string[];
+    mode: ExplorationMode;
+    exclude: string[];
+    habits?: string[];
+    profile?: { leans: string[]; picks: string[]; skips: string[] };
+  },
   handlers: { onQuestion: (q: GeneratedQuestion) => void; onCare: () => void },
 ): Promise<number> {
   let response: Response;

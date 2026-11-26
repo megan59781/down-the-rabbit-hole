@@ -17,7 +17,7 @@ export function CareNote() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         onClick={() => setOpen(true)}
-        className="fixed top-16 right-3 z-30 rounded-full sm:top-auto sm:bottom-5 border border-ice/40 bg-midnight/80 px-3 py-1.5 text-xs text-soft backdrop-blur sm:right-6"
+        className="fixed top-28 right-3 z-30 rounded-full sm:top-auto sm:bottom-5 border border-ice/40 bg-midnight/80 px-3 py-1.5 text-xs text-soft backdrop-blur sm:right-6"
       >
         Need someone to talk to?
       </motion.button>
@@ -32,7 +32,7 @@ export function CareNote() {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6, delay: 0.8 }}
-      className="fixed inset-x-3 top-16 z-30 mx-auto max-w-md rounded-2xl sm:top-auto sm:bottom-16 border border-ice/30 bg-midnight/90 p-4 text-sm text-soft shadow-[0_0_40px_-10px_rgb(156_203_255/0.5)] backdrop-blur"
+      className="fixed inset-x-3 top-28 z-30 mx-auto max-w-md rounded-2xl sm:top-auto sm:bottom-16 border border-ice/30 bg-midnight/90 p-4 text-sm text-soft shadow-[0_0_40px_-10px_rgb(156_203_255/0.5)] backdrop-blur"
     >
       <p className="font-display font-semibold">You don&rsquo;t have to fall alone.</p>
       <p className="mt-1 text-muted">

@@ -1,6 +1,8 @@
 // Shared domain types.
+import type { Style, Territory } from "@/lib/astray/territories";
 
-export type ExplorationMode = "deeper" | "stranger";
+/** Deeper and Stranger shape what the AI writes; Astray steers away from your own habits. */
+export type ExplorationMode = "deeper" | "stranger" | "astray";
 
 export type QuestionNode = {
   id: string;
@@ -10,8 +12,16 @@ export type QuestionNode = {
   whisper?: string;
   /** The direction of the fall this question rose from (the root counts as deeper). */
   mode: ExplorationMode;
+  /** What kind of thing the question is about, tagged by the AI. */
+  territory?: Territory;
+  /** What kind of question it is (playful or serious, small or vast…), tagged by the AI. */
+  style?: Style;
+  /** Astray only: why this question goes against your grain, e.g. "you usually skip serious ones". */
+  against?: string;
   children: string[];
   createdAt: string;
+  /** The candidates Astray turned down last time questions rose from here (they were too "you"). */
+  passedOver?: { text: string; territory?: Territory; style?: Style }[];
 };
 
 export type ExplorationSession = {
@@ -28,4 +38,4 @@ export type ExplorationSession = {
 };
 
 /** A freshly generated question, as returned by /api/questions. */
-export type GeneratedQuestion = { text: string; whisper: string };
+export type GeneratedQuestion = { text: string; whisper: string; territory?: Territory; style?: Style };

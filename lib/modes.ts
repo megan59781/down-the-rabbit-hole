@@ -20,4 +20,12 @@ export const MODES: Record<
     glow: "shadow-[0_0_50px_-15px_rgb(229_162_232_/0.55)]",
     bg: "bg-pink",
   },
+  astray: {
+    label: "Go Astray",
+    tagline: "Away from your habits, wherever they usually take you.",
+    text: "text-lavender",
+    border: "border-lavender/40",
+    glow: "shadow-[0_0_50px_-15px_rgb(183_154_255/0.55)]",
+    bg: "bg-lavender",
+  },
 };

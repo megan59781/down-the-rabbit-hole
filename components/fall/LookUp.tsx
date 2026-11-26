@@ -5,9 +5,11 @@ import { motion } from "framer-motion";
 import { useEffect } from "react";
 import { Footprints } from "@/components/branding/RabbitGuide";
 import { childrenOf, pathTo } from "@/lib/session/tree";
+import { HabitMirror } from "./HabitMirror";
 import type { ExplorationSession } from "@/lib/types";
 
-const MODE_TEXT = { deeper: "text-ice", stranger: "text-pink" } as const;
+const MODE_TEXT = { deeper: "text-ice", stranger: "text-pink", astray: "text-lavender" } as const;
+const MODE_GLYPH = { deeper: "↓", stranger: "✦", astray: "⇝" } as const;
 
 type LookUpProps = {
   session: ExplorationSession;
@@ -96,7 +98,7 @@ export function LookUp({ session, onJump, onClose }: LookUpProps) {
                   )}
                 >
                   <span className={clsx("text-xs", i === 0 ? "text-lavender" : MODE_TEXT[node.mode])}>
-                    {i === 0 ? "◯" : node.mode === "deeper" ? "↓" : "✦"}
+                    {i === 0 ? "◯" : MODE_GLYPH[node.mode]}
                   </span>
                   <span className={clsx(i === 0 ? "font-serif text-lg" : "text-sm", "text-soft")}>{node.text}</span>
                   {current ? <Footprints className="h-3.5 w-3.5 shrink-0 text-lavender" /> : null}
@@ -109,6 +111,8 @@ export function LookUp({ session, onJump, onClose }: LookUpProps) {
         <p className="mt-10 text-center text-xs text-muted/70">
           Tap any question to fall back into it. The faint ones are the paths you passed.
         </p>
+
+        <HabitMirror />
       </div>
     </motion.div>
   );

@@ -31,14 +31,26 @@ npm run build
 4. **Flip gravity** with the header toggle:
    - **↓ Deeper**: straight down a cold blue tunnel. Assumptions, causes, what's underneath.
    - **✦ Stranger**: the tunnel twists into a pink spiral and tips sideways. Other worlds, odd angles.
+   - **⇝ Astray**: the anti-algorithm. The hole leads you away from your own habits (see below).
 5. **Scroll or swipe** to fall faster; stop and you slow to a hover.
 6. **↑ Look up** pauses the fall and shows the path you took, with the questions you passed beside it. Tap any to fall back into it.
 7. **↻ Let others rise** swaps in a fresh set.
 8. **Steer**: tilt your phone (or move the mouse on desktop) to lean the hole; the questions drift the other way.
 9. **Depth**: every level down is darker and slower, and the rabbit flashes past more often.
-10. **🔊 Sound** (off until you switch it on, then remembered): wind that follows your falling speed, a cold hum for Deeper, a warbling shimmer for Stranger, and bells when you grab a question or new ones rise. All synthesised live with the Web Audio API.
+10. **🔊 Sound** (off until you switch it on, then remembered): wind that follows your falling speed, a cold hum for Deeper, a warbling shimmer for Stranger, an unsettled, wandering drone for Astray, and bells when you grab a question or new ones rise. All synthesised live with the Web Audio API.
 
 The tunnel is a canvas animation; reduced-motion users get a slow, gentle version. Falls are saved in the browser (localStorage), so a refresh keeps everything.
+
+## Astray: the anti-algorithm
+
+A feed learns what you like and gives you more of it. Astray learns what you like and leads you away from it, and shows you that it's doing so.
+
+1. **Learning**: the AI tags every question with a territory (science, history, art, money…) and a style on four axes: playful/serious, small/vast, concrete/abstract, personal/worldly. Every grab, in any direction, updates a habit model: the topics and kinds of question you choose, the ones you pass over, with older choices fading. Stored only in this browser.
+2. **A wide field, written against you**: in Astray the AI writes 10 candidates instead of 4, with a brief of your habits: your style lean (and the opposite to write), your favourite territories, and a handful of recent picks ("nothing like these") and skips ("lean towards these").
+3. **Meaning, on device**: a small sentence-embedding model (all-MiniLM-L6-v2 via transformers.js) runs in a Web Worker and places each question in a space of meaning. It downloads the first time you go Astray (about 45 MB, then cached; skipped on data-saver connections). Question text never leaves the device for this.
+4. **The inverted recommender** (`lib/astray/select.ts`): each candidate gets a familiarity score: how crowded your recent picks are around it in meaning-space, how much it matches your usual style and topics, and how close it is to the fall so far, minus a pull towards the things you skip. It keeps the 4 least familiar that still (loosely) grow from the held question, using maximal-marginal-relevance so they also differ from each other. Without the model, it steers by territory alone.
+5. **Made visible**: the candidates hover faintly while they stream in; the six turned down are struck through, marked "too you" and flung into the walls on their territory's side. The tunnel dents inwards on the side of your strongest habit and bends away from it, harder the more set in your ways you are. Each question says why it's there ("you usually skip serious ones", "you never go near myth"), and the rabbit names the habits it's working against.
+6. **Honest**: ↑ Look up shows what the hole thinks you like (topics and style), how it's steering, and a button to forget it all.
 
 ## AI
 
@@ -60,18 +72,20 @@ All model calls happen server-side; the browser never sees the key.
 - **Safe by default:** every streamed line is validated on the server and again in the browser. Nothing model-generated is executed.
 - **Care first:** questions that sound like real distress (a keyword check, plus the model's own flag) get gentle, grounded questions whatever the mode, and a calm support note with Samaritans and findahelpline.com.
 - **Abuse and cost controls:** same-origin check, per-visitor rate limits, a daily cap, and a small output token cap. Limits are in memory (per server instance); use a shared store such as Upstash Redis before real public traffic.
-- **Privacy:** questions go to the AI to grow new ones and are never stored or logged on the server; falls live in the browser's localStorage.
+- **Privacy:** questions go to the AI to grow new ones and are never stored or logged on the server; falls and habits live in the browser's localStorage. In Astray, a few of your recent picks and skips are sent along with the question so the AI can write against them. Astray's embedding library and model weights come from jsDelivr and Hugging Face; no question text is sent to either.
 - Requests run at low effort for responsiveness, with Anthropic's server-side refusal fallback enabled.
 
 ## Structure
 
 ```text
 app/                       routes, layout, global theme (globals.css), favicon (icon.svg)
-app/api/questions          question → questions
+app/api/questions          question → streamed questions (NDJSON)
 app/explore/[sessionId]    the fall (client-only; falls live in localStorage)
 components/branding        Logo, RabbitIcon, RabbitGuide (loader, ears, footprints)
 components/landing         LandingPage, BeginJourney, ThoughtInput
-components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, useSteer (tilt/mouse)
+components/fall            FallView, Tunnel (canvas), GravityToggle, LookUp, HabitMirror, AstrayGhosts, CareNote, useSteer
+lib/astray                 territories, habit model, on-device embedder, the inverted recommender
+public/astray              the embedding Web Worker
 components/landing/JumpIn  the plunge from the landing page into the hole
 lib/audio                  FallAudio (Web Audio synth) + useFallAudio
 lib/ai                     provider abstraction, prompts, generators (server-only)
@@ -85,5 +99,5 @@ lib/content                landing page example prompts
 ## Brand tokens
 
 Defined in `app/globals.css` under `@theme` and usable as Tailwind classes:
-`midnight`, `violet`, `lavender`, `ice` (Go Deeper), `pink` (Go Stranger), `soft`, `muted`.
+`midnight`, `violet`, `lavender`, `ice` (Go Deeper), `pink` (Go Stranger), `lavender` (Go Astray), `soft`, `muted`.
 Fonts: `font-display` (Space Grotesk), `font-sans` (Inter), `font-serif` (DM Serif Display).

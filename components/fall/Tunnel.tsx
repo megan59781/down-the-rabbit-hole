@@ -15,6 +15,11 @@ type TunnelProps = {
   depth: number;
   /** Steering input in -1..1 (phone tilt or mouse), nudging the hole's centre. */
   steer?: RefObject<{ x: number; y: number }>;
+  /**
+   * Astray only: where your habits sit around the tunnel (radians) and how set in them you are
+   * (0..1). The walls dent inwards on that side and the hole bends away from it.
+   */
+  push?: { angle: number; strength: number };
 };
 
 const ICE = [156, 203, 255];
@@ -25,22 +30,38 @@ const PARTICLES = 160;
 const NEAR = 0.3;
 const FAR = 14;
 
+const VIOLET = [101, 68, 165];
+const SEGMENTS = 48;
 const mix = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 /**
  * The rabbit hole: rings rush towards you out of a dark vanishing point. Deeper falls straight
- * down a cold, round tunnel; Stranger twists it into a drifting pink spiral. Scrolling or
+ * down a cold, round tunnel; Stranger twists it into a drifting pink spiral; Astray dents the
+ * walls on the side of your habits and bends the hole away from them. Scrolling or
  * swiping changes how fast you fall.
  */
-export function Tunnel({ mode, burst, paused, onSpeed, depth, steer }: TunnelProps) {
+export function Tunnel({ mode, burst, paused, onSpeed, depth, steer, push }: TunnelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Starts mid-plunge, so arriving from the landing page feels like you're still falling in.
-  const live = useRef({ modeTarget: mode === "stranger" ? 1 : 0, boost: 6, paused, onSpeed, depth, steer });
+  const live = useRef({
+    modeTarget: mode === "stranger" ? 1 : 0,
+    astrayTarget: mode === "astray" ? 1 : 0,
+    boost: 6,
+    paused,
+    onSpeed,
+    depth,
+    steer,
+    push: push ?? { angle: -Math.PI / 2, strength: 0 },
+  });
 
   useEffect(() => {
     live.current.modeTarget = mode === "stranger" ? 1 : 0;
+    live.current.astrayTarget = mode === "astray" ? 1 : 0;
   }, [mode]);
+  useEffect(() => {
+    if (push) live.current.push = push;
+  }, [push]);
   useEffect(() => {
     if (burst > 0) live.current.boost = 7;
   }, [burst]);
@@ -102,6 +123,9 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer }: TunnelPro
     window.addEventListener("touchmove", onTouchMove, { passive: true });
 
     let m = live.current.modeTarget;
+    let a = live.current.astrayTarget;
+    let pushAngle = live.current.push.angle;
+    let pushStrength = live.current.push.strength;
     let dz = 0;
     let sx = 0;
     let sy = 0;
@@ -117,6 +141,11 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer }: TunnelPro
       const s = live.current;
       t += dt;
       m += (s.modeTarget - m) * Math.min(1, dt * 2);
+      a += (s.astrayTarget - a) * Math.min(1, dt * 2);
+      // Turn the shortest way round towards where your habits now sit.
+      const turn = Math.atan2(Math.sin(s.push.angle - pushAngle), Math.cos(s.push.angle - pushAngle));
+      pushAngle += turn * Math.min(1, dt * 1.2);
+      pushStrength += (s.push.strength - pushStrength) * Math.min(1, dt * 1.2);
       s.boost *= Math.pow(0.12, dt);
       scroll *= Math.pow(0.35, dt);
       // Each level down the hole is a little darker and a little slower (levelling off around 8).
@@ -133,8 +162,12 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer }: TunnelPro
       const vx = w / 2 + m * w * 0.09 * Math.sin(t * 0.35) + sx * w * 0.12;
       const vy = h * 0.48 + m * h * 0.07 * Math.cos(t * 0.27) + sy * h * 0.1;
       const scale = Math.max(w, h) * 0.5;
-      const colour = mix(ICE, PINK, m);
-      const accent = mix(LAVENDER, ICE, 1 - m);
+      const colour = mix(mix(ICE, PINK, m), LAVENDER, a);
+      const accent = mix(mix(LAVENDER, ICE, 1 - m), VIOLET, a * 0.6);
+      // Astray: the habit side flinches a little, as if the hole can't bear to look at it.
+      const flinch = pushAngle + Math.sin(t * 0.7) * 0.12;
+      const dent = a * (0.16 + 0.34 * pushStrength);
+      const bend = a * (0.35 + 0.65 * pushStrength);
 
       ctx.clearRect(0, 0, w, h);
 
@@ -154,10 +187,17 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer }: TunnelPro
       rings.sort((a, b) => b.z - a.z);
 
       // Each ring's centre is offset along a twisting path; in Deeper the path is straight.
+      // Astray bends the far end of the hole away from your habits.
       const centreAt = (z: number) => {
         const off = m * z * 16;
-        return [vx + Math.cos(z * 0.55 + t * 0.9) * off, vy + Math.sin(z * 0.55 + t * 0.9) * off];
+        const away = bend * z * 9;
+        return [
+          vx + Math.cos(z * 0.55 + t * 0.9) * off - Math.cos(flinch) * away,
+          vy + Math.sin(z * 0.55 + t * 0.9) * off - Math.sin(flinch) * away,
+        ];
       };
+      // How far a wall is pushed in at angle θ: only on the habit side, sharply.
+      const dentAt = (theta: number) => 1 - dent * Math.pow(Math.max(0, Math.cos(theta - flinch)), 3);
 
       for (const ring of rings) {
         const r = scale / ring.z;
@@ -167,7 +207,18 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer }: TunnelPro
         const alpha = fadeFar * fadeNear * (ring.alt ? 0.7 : 0.4) * (1 - 0.5 * dz);
         const c = ring.alt ? accent : colour;
         ctx.beginPath();
-        ctx.ellipse(cx, cy, r, r * (1 - 0.28 * m), spin + ring.z * 0.4 * m, 0, Math.PI * 2);
+        if (a > 0.01) {
+          for (let k = 0; k <= SEGMENTS; k++) {
+            const theta = (k / SEGMENTS) * Math.PI * 2;
+            const rr = r * dentAt(theta);
+            const x = cx + Math.cos(theta) * rr;
+            const y = cy + Math.sin(theta) * rr * (1 - 0.28 * m);
+            if (k === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+        } else {
+          ctx.ellipse(cx, cy, r, r * (1 - 0.28 * m), spin + ring.z * 0.4 * m, 0, Math.PI * 2);
+        }
         ctx.strokeStyle = `rgba(${c.join(",")}, ${alpha})`;
         ctx.lineWidth = clamp(2.4 / ring.z, 0.4, 3.5);
         ctx.stroke();
@@ -185,10 +236,11 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer }: TunnelPro
         const angle = p.a + spin * (0.6 + m);
         const [cx1, cy1] = centreAt(p.z);
         const [cx2, cy2] = centreAt(p.z + streak);
-        const x1 = cx1 + Math.cos(angle) * (p.r * scale) / p.z;
-        const y1 = cy1 + Math.sin(angle) * (p.r * scale) / p.z;
-        const x2 = cx2 + Math.cos(angle) * (p.r * scale) / (p.z + streak);
-        const y2 = cy2 + Math.sin(angle) * (p.r * scale) / (p.z + streak);
+        const pr = p.r * scale * dentAt(angle);
+        const x1 = cx1 + (Math.cos(angle) * pr) / p.z;
+        const y1 = cy1 + (Math.sin(angle) * pr) / p.z;
+        const x2 = cx2 + (Math.cos(angle) * pr) / (p.z + streak);
+        const y2 = cy2 + (Math.sin(angle) * pr) / (p.z + streak);
         const alpha = clamp(1 - p.z / FAR, 0, 1) * 0.8 * (1 - 0.4 * dz);
         ctx.beginPath();
         ctx.moveTo(x2, y2);

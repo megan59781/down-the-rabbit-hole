@@ -34,7 +34,7 @@ export function risingFrom(session: ExplorationSession, id: string, mode: Explor
 export function addQuestions(
   session: ExplorationSession,
   parentId: string,
-  generated: GeneratedQuestion[],
+  generated: (GeneratedQuestion & { against?: string })[],
   mode: ExplorationMode,
 ): ExplorationSession {
   const existing = new Set(childrenOf(session, parentId).map((n) => n.text.toLowerCase()));
@@ -43,7 +43,18 @@ export function addQuestions(
   for (const q of generated) {
     if (existing.has(q.text.toLowerCase())) continue;
     existing.add(q.text.toLowerCase());
-    added.push({ id: uid("q-"), parentId, text: q.text, whisper: q.whisper, mode, children: [], createdAt: now });
+    added.push({
+      id: uid("q-"),
+      parentId,
+      text: q.text,
+      whisper: q.whisper,
+      territory: q.territory,
+      style: q.style,
+      against: q.against,
+      mode,
+      children: [],
+      createdAt: now,
+    });
   }
   const nodes = session.nodes.map((n) =>
     n.id === parentId ? { ...n, children: [...n.children, ...added.map((a) => a.id)] } : n,
@@ -68,4 +79,9 @@ export function contextPath(session: ExplorationSession, id: string, limit = 5):
     .slice(0, -1)
     .slice(-limit)
     .map((n) => n.text);
+}
+
+/** Remember what Astray turned down when questions last rose from a node. */
+export function setPassedOver(session: ExplorationSession, nodeId: string, passedOver: QuestionNode["passedOver"]) {
+  return { ...session, nodes: session.nodes.map((n) => (n.id === nodeId ? { ...n, passedOver } : n)) };
 }

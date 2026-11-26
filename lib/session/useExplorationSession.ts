@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { embedderState } from "@/lib/astray/embedder";
+import { astrayProfile, getHabits, habitTerritories } from "@/lib/astray/habits";
+import { selectAstray } from "@/lib/astray/select";
 import { streamQuestions } from "@/lib/explore/client";
 import { sessionStore } from "@/lib/storage/sessions";
-import type { ExplorationMode, ExplorationSession } from "@/lib/types";
-import { addQuestions, childrenOf, getNode, risingFrom } from "./tree";
+import type { ExplorationMode, ExplorationSession, GeneratedQuestion } from "@/lib/types";
+import { addQuestions, childrenOf, getNode, pathTo, risingFrom, setPassedOver } from "./tree";
 
 function without<T>(record: Record<string, T>, key: string): Record<string, T> {
   const next = { ...record };
@@ -28,6 +31,8 @@ export function useExplorationSession(sessionId: string) {
   const sessionRef = useRef(session);
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /** Astray candidates as they stream in, before the hole picks which ones to let rise. */
+  const [candidates, setCandidates] = useState<Record<string, GeneratedQuestion[]>>({});
   const inFlight = useRef(new Set<string>());
   const queue = useRef<{ nodeId: string; mode: ExplorationMode }[]>([]);
   const prefetching = useRef(0);
@@ -51,6 +56,9 @@ export function useExplorationSession(sessionId: string) {
       try {
         const s = sessionRef.current;
         const node = getNode(s, nodeId)!;
+        const astray = mode === "astray";
+        const field: GeneratedQuestion[] = [];
+        let care = false;
         await streamQuestions(
           {
             question: node.text,
@@ -58,12 +66,42 @@ export function useExplorationSession(sessionId: string) {
             path: [],
             mode,
             exclude: childrenOf(s, nodeId).map((n) => n.text),
+            habits: astray ? habitTerritories(getHabits()) : [],
+            profile: astray ? astrayProfile(getHabits()) : undefined,
           },
           {
-            onQuestion: (q) => commit((cur) => addQuestions(cur, nodeId, [q], mode)),
-            onCare: () => commit((cur) => (cur.care ? cur : { ...cur, care: true })),
+            onQuestion: (q) => {
+              if (!astray) return commit((cur) => addQuestions(cur, nodeId, [q], mode));
+              // Astray: gather the whole field first, so the hole can choose what to turn down.
+              field.push(q);
+              if (!quiet) setCandidates((c) => ({ ...c, [key]: [...field] }));
+            },
+            onCare: () => {
+              care = true;
+              commit((cur) => (cur.care ? cur : { ...cur, care: true }));
+            },
           },
         );
+        if (astray && care) {
+          // Someone who may be struggling isn't steered against anything: just the gentle questions.
+          commit((cur) => addQuestions(cur, nodeId, field.slice(0, 4), mode));
+        } else if (astray) {
+          const selection = await selectAstray({
+            candidates: field,
+            held: node.text,
+            path: pathTo(s, nodeId).slice(0, -1).map((n) => n.text),
+            habits: getHabits(),
+            // Wait for meaning only if the model is already loaded; otherwise steer by tags now.
+            timeoutMs: embedderState() === "ready" ? 3_000 : 300,
+          });
+          commit((cur) =>
+            setPassedOver(
+              addQuestions(cur, nodeId, selection.chosen, mode),
+              nodeId,
+              selection.passedOver.map(({ text, territory, style }) => ({ text, territory, style })),
+            ),
+          );
+        }
       } catch (error) {
         // A look-ahead's failure only matters if you've since fallen into that question.
         const cur = sessionRef.current;
@@ -73,6 +111,7 @@ export function useExplorationSession(sessionId: string) {
       } finally {
         inFlight.current.delete(key);
         setPending((p) => without(p, key));
+        setCandidates((c) => (key in c ? without(c, key) : c));
       }
     },
     [commit],
@@ -130,7 +169,7 @@ export function useExplorationSession(sessionId: string) {
     [commit, ensureRising],
   );
 
-  return { session, pending, errors, grow, dive, setMode, ensureRising, prefetch };
+  return { session, pending, errors, candidates, grow, dive, setMode, ensureRising, prefetch };
 }
 
 export type ExplorationController = ReturnType<typeof useExplorationSession>;

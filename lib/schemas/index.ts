@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { STYLE_AXES, STYLE_VALUES, TERRITORIES } from "@/lib/astray/territories";
 
 export const MAX_QUESTION_LENGTH = 280;
 
-export const ModeSchema = z.enum(["deeper", "stranger"]);
+export const ModeSchema = z.enum(["deeper", "stranger", "astray"]);
 
 export const QuestionsRequestSchema = z.object({
   question: z.string().trim().min(1).max(MAX_QUESTION_LENGTH),
@@ -11,9 +12,31 @@ export const QuestionsRequestSchema = z.object({
   mode: ModeSchema,
   /** Questions already rising from this one, so new ones don't repeat them. */
   exclude: z.array(z.string().max(MAX_QUESTION_LENGTH)).max(40).default([]),
+  /** Astray only: the territories this person keeps choosing, so the AI can write away from them. */
+  habits: z.array(z.enum(TERRITORIES)).max(5).default([]),
+  /** Astray only: what this person tends to pick and pass over, so the AI can write against it. */
+  profile: z
+    .object({
+      leans: z.array(z.enum(STYLE_VALUES as [string, ...string[]])).max(4).default([]),
+      picks: z.array(z.string().max(MAX_QUESTION_LENGTH)).max(5).default([]),
+      skips: z.array(z.string().max(MAX_QUESTION_LENGTH)).max(5).default([]),
+    })
+    .optional(),
 });
 
-const GeneratedQuestionSchema = z.object({ text: z.string().min(1).max(200), whisper: z.string().max(120) });
+const GeneratedQuestionSchema = z.object({
+  text: z.string().min(1).max(200),
+  whisper: z.string().max(120),
+  territory: z.enum(TERRITORIES).optional(),
+  style: z
+    .object({
+      tone: z.enum(STYLE_AXES.tone).optional(),
+      scale: z.enum(STYLE_AXES.scale).optional(),
+      lens: z.enum(STYLE_AXES.lens).optional(),
+      focus: z.enum(STYLE_AXES.focus).optional(),
+    })
+    .optional(),
+});
 
 /** One line of the streamed response, validated again in the browser. */
 export const QuestionEventSchema = z.discriminatedUnion("type", [

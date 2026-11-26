@@ -1,5 +1,5 @@
 // The sound of the fall, synthesised live with the Web Audio API (no audio files).
-// Wind follows your falling speed; a drone sets the mood of each direction; small
+// Wind follows your falling speed; a drone sets the mood of each direction (deeper, stranger, astray); small
 // bells mark grabbing a question and new ones rising.
 import type { ExplorationMode } from "@/lib/types";
 
@@ -21,6 +21,7 @@ export class FallAudio {
   private readonly rumbleGain: GainNode;
   private readonly deeperBus: GainNode;
   private readonly strangerBus: GainNode;
+  private readonly astrayBus: GainNode;
   private lastSpeedAt = 0;
 
   static create(): FallAudio | null {
@@ -149,6 +150,34 @@ export class FallAudio {
       osc.start(now);
     }
     shimmerGain.connect(this.strangerBus);
+
+    // Astray: two tones not quite a fifth apart, so they beat slowly and never settle,
+    // with the whole drone wandering in pitch. Unsettled, but quiet.
+    this.astrayBus = ctx.createGain();
+    this.astrayBus.gain.value = 0;
+    const astrayFilter = ctx.createBiquadFilter();
+    astrayFilter.type = "lowpass";
+    astrayFilter.frequency.value = 700;
+    astrayFilter.connect(this.astrayBus).connect(this.master);
+    const wander = ctx.createOscillator();
+    wander.frequency.value = 0.045;
+    const wanderDepth = ctx.createGain();
+    wanderDepth.gain.value = 18; // cents
+    wander.connect(wanderDepth);
+    wander.start(now);
+    for (const [freq, level] of [
+      [98, 0.03],
+      [146.2, 0.016],
+      [196.7, 0.006],
+    ] as const) {
+      const osc = ctx.createOscillator();
+      osc.frequency.value = freq;
+      wanderDepth.connect(osc.detune);
+      const gain = ctx.createGain();
+      gain.gain.value = level;
+      osc.connect(gain).connect(astrayFilter);
+      osc.start(now);
+    }
   }
 
   /** Fade in. Must be called from a user gesture the first time (browser autoplay rules). */
@@ -173,6 +202,7 @@ export class FallAudio {
     const now = this.ctx.currentTime;
     this.deeperBus.gain.setTargetAtTime(mode === "deeper" ? 1 : 0, now, time);
     this.strangerBus.gain.setTargetAtTime(mode === "stranger" ? 1 : 0, now, time);
+    this.astrayBus.gain.setTargetAtTime(mode === "astray" ? 1 : 0, now, time);
   }
 
   /** Called every animation frame by the tunnel; throttled here. */
@@ -209,11 +239,14 @@ export class FallAudio {
     overtone.stop(at + decay + 0.05);
   }
 
-  /** Grabbing a question: low and clean when deeper, a strange arpeggio when stranger. */
+  /** Grabbing a question: low and clean when deeper, a strange arpeggio when stranger, a wrong turn when astray. */
   chime(mode: ExplorationMode) {
     const now = this.ctx.currentTime;
     if (mode === "deeper") {
       DEEPER_BELL.forEach((f, i) => this.bell(f, now + i * 0.015, 0.09, 2.2));
+    } else if (mode === "astray") {
+      // A phrase that starts somewhere familiar and steps off to the side.
+      [523.25, 587.33, 554.37].forEach((f, i) => this.bell(f, now + i * 0.12, 0.07, 1.8));
     } else {
       for (let i = 0; i < 3; i++) this.bell(pick(STRANGE_SCALE) * (1 + (Math.random() - 0.5) * 0.01), now + i * 0.09, 0.07, 1.6);
     }

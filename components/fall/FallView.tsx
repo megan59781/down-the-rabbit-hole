@@ -3,13 +3,25 @@
 import { clsx } from "clsx";
 import { AnimatePresence, motion, useReducedMotion, useTransform } from "framer-motion";
 import Link from "next/link";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { warmEmbedder } from "@/lib/astray/embedder";
+import {
+  getHabits,
+  getServerHabits,
+  habitTerritories,
+  narrowness,
+  recordChoice,
+  styleHabits,
+  subscribeHabits,
+} from "@/lib/astray/habits";
+import { territoryAngle } from "@/lib/astray/territories";
 import { Logo } from "@/components/branding/Logo";
 import { useFallAudio } from "@/lib/audio/useFallAudio";
 import { RabbitIcon } from "@/components/branding/RabbitIcon";
 import { childrenOf, getNode, pathTo, risingFrom } from "@/lib/session/tree";
 import { growKey, useExplorationSession } from "@/lib/session/useExplorationSession";
 import type { ExplorationMode, QuestionNode } from "@/lib/types";
+import { AstrayGhosts } from "./AstrayGhosts";
 import { CareNote } from "./CareNote";
 import { GravityToggle } from "./GravityToggle";
 import { LookUp } from "./LookUp";
@@ -20,7 +32,13 @@ import { useSteer } from "./useSteer";
 const VANISH = { x: 50, y: 48 };
 const DIVE_MS = 650;
 
-const GLOW = { deeper: "156 203 255", stranger: "229 162 232" } as const;
+const GLOW = { deeper: "156 203 255", stranger: "229 162 232", astray: "183 154 255" } as const;
+
+const RISING_TEXT = {
+  deeper: "Questions are rising from below…",
+  stranger: "Something strange is drifting in…",
+  astray: "Turning away from your usual paths…",
+} as const;
 
 function subscribeNarrow(cb: () => void) {
   const mql = window.matchMedia("(max-width: 639px)");
@@ -29,14 +47,14 @@ function subscribeNarrow(cb: () => void) {
 }
 const isNarrow = () => window.matchMedia("(max-width: 639px)").matches;
 
-/** Resting spots for the rising questions; Stranger tilts the whole arrangement off-axis. */
+/** Resting spots for the rising questions; Stranger and Astray tilt the arrangement off-axis, opposite ways. */
 function slotsFor(mode: ExplorationMode, narrow: boolean) {
   const base = narrow
     ? [
-        [28, 17],
-        [72, 28],
-        [28, 67],
-        [72, 79],
+        [28, 24],
+        [72, 30],
+        [28, 68],
+        [72, 80],
       ]
     : [
         [21, 22],
@@ -45,7 +63,7 @@ function slotsFor(mode: ExplorationMode, narrow: boolean) {
         [81, 71],
       ];
   if (mode === "deeper") return base.map(([x, y]) => ({ x, y }));
-  const angle = (-13 * Math.PI) / 180;
+  const angle = ((mode === "stranger" ? -13 : 11) * Math.PI) / 180;
   return base.map(([x, y]) => {
     const dx = x - VANISH.x;
     const dy = y - VANISH.y;
@@ -75,6 +93,27 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const risingY = useTransform(steering.y, (v) => v * -16 * drift);
   const heldX = useTransform(steering.x, (v) => v * 8);
   const heldY = useTransform(steering.y, (v) => v * 6);
+
+  // What the hole has learned about you (this browser only). Astray steers against it.
+  const habits = useSyncExternalStore(subscribeHabits, getHabits, getServerHabits);
+  const avoiding = habitTerritories(habits, 2);
+  const avoidingStyle = styleHabits(habits).slice(0, 2);
+  // "You keep choosing playful, small questions about language and art. Not this time."
+  const habitLine =
+    avoiding.length || avoidingStyle.length
+      ? `You keep choosing ${avoidingStyle.length ? avoidingStyle.join(", ") + " " : ""}questions${avoiding.length ? " about " + avoiding.join(" and ") : ""}. Not this time.`
+      : null;
+  const focusTerritory = session ? getNode(session, session.focusId)?.territory : undefined;
+  const push = useMemo(() => {
+    const top = habitTerritories(habits, 1)[0] ?? focusTerritory;
+    return { angle: top ? territoryAngle(top) : -Math.PI / 2, strength: narrowness(habits) };
+  }, [habits, focusTerritory]);
+
+  // The embedding model only downloads once you actually go astray.
+  const inAstray = session?.mode === "astray";
+  useEffect(() => {
+    if (inAstray) warmEmbedder();
+  }, [inAstray]);
 
   // A faint plink for each question as it starts rising (they stream in one by one).
   const risingIds = session ? risingFrom(session, session.focusId, session.mode).map((q) => q.id) : [];
@@ -138,6 +177,8 @@ export function FallView({ sessionId }: { sessionId: string }) {
 
   const grab = (id: string) => {
     if (diving) return;
+    const chosen = rising.find((q) => q.id === id);
+    if (chosen) recordChoice(chosen, rising.filter((q) => q.id !== id));
     setDiving(id);
     setBurst((b) => b + 1);
     sound.whoosh();
@@ -158,7 +199,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-clip bg-midnight">
-      <header className="relative z-30 flex items-center justify-between gap-2 px-3 py-3 sm:px-6">
+      <header className="relative z-30 flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:flex-nowrap sm:px-6">
         <Link href="/" aria-label="Back to the start" className="shrink-0">
           <span className="hidden sm:block">
             <Logo />
@@ -167,7 +208,10 @@ export function FallView({ sessionId }: { sessionId: string }) {
             <Logo compact />
           </span>
         </Link>
-        <GravityToggle mode={mode} onChange={controller.setMode} />
+        {/* On phones the three directions get a row of their own under the logo. */}
+        <div className="order-last flex w-full justify-center sm:order-none sm:w-auto">
+          <GravityToggle mode={mode} onChange={controller.setMode} />
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
@@ -206,6 +250,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
           onSpeed={sound.setSpeed}
           depth={depth}
           steer={steering.steer}
+          push={push}
         />
         {/* The deeper you go, the more the dark closes in around the edges. */}
         <div
@@ -243,6 +288,15 @@ export function FallView({ sessionId }: { sessionId: string }) {
           </AnimatePresence>
         </motion.div>
 
+        {mode === "astray" ? (
+          <AstrayGhosts
+            key={focus.id}
+            live={growing ? (controller.candidates[key] ?? []) : []}
+            passedOver={!growing && rising.length > 0 ? (focus.passedOver ?? []) : []}
+            reduce={reduce}
+          />
+        ) : null}
+
         {/* Questions rising out of the dark. */}
         <AnimatePresence>
           <motion.div
@@ -276,7 +330,11 @@ export function FallView({ sessionId }: { sessionId: string }) {
             </p>
           ) : growing && rising.length === 0 ? (
             <p className="text-sm text-muted italic animate-pulse">
-              {mode === "deeper" ? "Questions are rising from below…" : "Something strange is drifting in…"}
+              {RISING_TEXT[mode]}
+            </p>
+          ) : mode === "astray" && rising.length > 0 && !growing ? (
+            <p className="text-xs text-lavender/90">
+              {habitLine ?? "Learning what you reach for, so it can lead you elsewhere."}
             </p>
           ) : !hasDived && rising.length > 0 ? (
             <p className="text-xs text-muted/80">Tap a question to fall into it · scroll to fall faster</p>
@@ -403,6 +461,14 @@ function RisingQuestion({ node, slot, index, state, reduce, onGrab }: RisingQues
             style={{ textShadow: "0 1px 3px rgb(10 8 18 / 0.9)" }}
           >
             {node.whisper}
+          </span>
+        ) : null}
+        {node.against ? (
+          <span
+            className="mt-1 block text-[0.65rem] tracking-[0.12em] text-lavender uppercase sm:text-xs"
+            style={{ textShadow: "0 1px 3px rgb(10 8 18 / 0.9)" }}
+          >
+            ⇝ {node.against}
           </span>
         ) : null}
       </motion.span>

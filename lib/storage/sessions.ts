@@ -28,7 +28,7 @@ function isSession(value: unknown): value is ExplorationSession {
         typeof n.text === "string" &&
         Array.isArray(n.children),
     ) &&
-    (s.mode === "deeper" || s.mode === "stranger") &&
+    (s.mode === "deeper" || s.mode === "stranger" || s.mode === "astray") &&
     s.nodes.some((n) => n.id === s.focusId)
   );
 }

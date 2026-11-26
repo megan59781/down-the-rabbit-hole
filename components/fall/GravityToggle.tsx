@@ -7,6 +7,7 @@ import type { ExplorationMode } from "@/lib/types";
 const OPTIONS = [
   { mode: "deeper", label: "Deeper", glyph: "↓", pill: "bg-ice", hint: "Fall straight down: assumptions, causes, what's underneath" },
   { mode: "stranger", label: "Stranger", glyph: "✦", pill: "bg-pink", hint: "Gravity tips sideways: other worlds, odd angles" },
+  { mode: "astray", label: "Astray", glyph: "⇝", pill: "bg-lavender", hint: "Away from your habits: the hole learns what you pick and leads you elsewhere" },
 ] as const;
 
 /** Flips the direction of the fall. */
