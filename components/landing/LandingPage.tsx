@@ -36,9 +36,7 @@ export function LandingPage() {
           </em>{" "}
           to see it?
         </h1>
-        <p className="mt-5 max-w-md text-lg text-muted">
-          Ask a question. Instead of answers, follow the questions it opens.
-        </p>
+        <p className="mt-5 text-base text-muted sm:text-lg">Ask a question. Follow it down the hole.</p>
         <div className="mt-10 flex w-full justify-center">
           <BeginJourney />
         </div>

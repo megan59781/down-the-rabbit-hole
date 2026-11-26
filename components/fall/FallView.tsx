@@ -3,6 +3,7 @@
 import { clsx } from "clsx";
 import { AnimatePresence, motion, useReducedMotion, useTransform } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { warmEmbedder } from "@/lib/astray/embedder";
 import {
@@ -24,6 +25,7 @@ import { growKey, useExplorationSession } from "@/lib/session/useExplorationSess
 import type { ExplorationMode, QuestionNode } from "@/lib/types";
 import { AstrayGhosts } from "./AstrayGhosts";
 import { CareNote } from "./CareNote";
+import { CLIMB_MS, ClimbOut } from "./ClimbOut";
 import { GravityToggle } from "./GravityToggle";
 import { LookUp } from "./LookUp";
 import { RabbitAsks } from "./RabbitAsks";
@@ -83,6 +85,18 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const [lookingUp, setLookingUp] = useState(false);
   const [rabbitOpen, setRabbitOpen] = useState(false);
   const [touring, setTouring] = useState(false);
+  // Leaving for a new question: you climb back up out of the hole first.
+  const router = useRouter();
+  const [climbing, setClimbing] = useState(false);
+  useEffect(() => {
+    router.prefetch("/");
+  }, [router]);
+  // This page is kept alive in the background after you leave, so coming back to the same fall
+  // re-shows it as it was. Effects re-run when it's shown: make sure you're falling, not climbing.
+  useEffect(() => {
+    const timer = setTimeout(() => setClimbing(false), 0);
+    return () => clearTimeout(timer);
+  }, []);
   // The tour is offered at the start of each new fall until you've taken it; the ? button brings
   // it back any time.
   const [offerTour, setOfferTour] = useState(false);
@@ -241,6 +255,17 @@ export function FallView({ sessionId }: { sessionId: string }) {
     controller.answerRabbit(asked, said);
   };
 
+  const climbOut = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // New-tab and other modified clicks behave like an ordinary link.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    if (climbing) return;
+    if (reduce) return router.push("/");
+    setClimbing(true);
+    sound.whoosh();
+    setTimeout(() => router.push("/"), CLIMB_MS);
+  };
+
   const jump = (id: string) => {
     setLookingUp(false);
     setBurst((b) => b + 1);
@@ -390,7 +415,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
   return (
     <div className="relative flex h-dvh flex-col overflow-clip bg-midnight">
       <header className="relative z-30 flex flex-wrap items-center justify-between gap-2 px-3 py-3 sm:flex-nowrap sm:px-6">
-        <Link href="/" aria-label="Back to the start" className="shrink-0">
+        <Link href="/" onClick={climbOut} aria-label="Back to the start" className="shrink-0">
           <span className="hidden sm:block">
             <Logo />
           </span>
@@ -440,6 +465,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
           </button>
           <Link
             href="/"
+            onClick={climbOut}
             aria-label="New question"
             className="rounded-full border border-white/20 bg-midnight/70 px-3.5 py-2 text-sm text-soft backdrop-blur transition hover:border-white/40"
           >
@@ -453,6 +479,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
           mode={mode}
           burst={burst}
           paused={lookingUp || rabbitOpen || touring}
+          rising={climbing}
           onSpeed={sound.setSpeed}
           depth={depth}
           steer={steering.steer}
@@ -468,7 +495,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
           reduce={reduce}
           depth={depth}
           // The rabbit leaves you be when things feel heavy, and while you're busy elsewhere.
-          catchable={!session.care && !lookingUp && !rabbitOpen && !touring && !diving}
+          catchable={!session.care && !lookingUp && !rabbitOpen && !touring && !climbing && !diving}
           onCatch={catchRabbit}
         />
 
@@ -554,6 +581,8 @@ export function FallView({ sessionId }: { sessionId: string }) {
       <AnimatePresence>{session.care ? <CareNote /> : null}</AnimatePresence>
 
       <AnimatePresence>{touring ? <Tour onDone={endTour} /> : null}</AnimatePresence>
+
+      <AnimatePresence>{climbing ? <ClimbOut /> : null}</AnimatePresence>
 
       <AnimatePresence>
         {rabbitOpen ? (

@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { EXAMPLE_PROMPTS, pickPrompts } from "@/lib/content/examplePrompts";
+import { useTypewriter } from "./useTypewriter";
 
 export const MAX_THOUGHT_LENGTH = 280;
 
@@ -21,6 +22,8 @@ export function ThoughtInput({ onSubmit }: ThoughtInputProps) {
   const [paused, setPaused] = useState(false);
   const reduceMotion = useReducedMotion();
   const trimmed = thought.trim();
+  // The placeholder types out example questions while the box is empty.
+  const placeholder = useTypewriter(thought.length === 0, Boolean(reduceMotion), examples);
 
   function shuffle() {
     setExamples((current) => pickPrompts(VISIBLE_EXAMPLES, current));
@@ -61,7 +64,7 @@ export function ThoughtInput({ onSubmit }: ThoughtInputProps) {
             if (e.key === "Enter" && !e.shiftKey) handleSubmit(e);
           }}
           rows={2}
-          placeholder="Why do cats knock things off tables?"
+          placeholder={placeholder}
           className="w-full resize-none bg-transparent px-4 pt-3 text-lg text-soft placeholder:text-muted/60 focus:outline-none"
         />
         <div className="flex items-center justify-between gap-3 px-2 pb-1">

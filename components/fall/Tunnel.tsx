@@ -20,6 +20,8 @@ type TunnelProps = {
    * (0..1). The walls dent inwards on that side and the hole bends away from it.
    */
   push?: { angle: number; strength: number };
+  /** Climbing back out: the fall runs in reverse, the rings rushing away below you. */
+  rising?: boolean;
 };
 
 const ICE = [156, 203, 255];
@@ -41,7 +43,7 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v
  * walls on the side of your habits and bends the hole away from them. Scrolling or
  * swiping changes how fast you fall.
  */
-export function Tunnel({ mode, burst, paused, onSpeed, depth, steer, push }: TunnelProps) {
+export function Tunnel({ mode, burst, paused, onSpeed, depth, steer, push, rising = false }: TunnelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Starts mid-plunge, so arriving from the landing page feels like you're still falling in.
   const live = useRef({
@@ -53,6 +55,7 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer, push }: Tun
     depth,
     steer,
     push: push ?? { angle: -Math.PI / 2, strength: 0 },
+    rising,
   });
 
   useEffect(() => {
@@ -67,7 +70,8 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer, push }: Tun
   }, [burst]);
   useEffect(() => {
     live.current.paused = paused;
-  }, [paused]);
+    live.current.rising = rising;
+  }, [paused, rising]);
   useEffect(() => {
     live.current.onSpeed = onSpeed;
   }, [onSpeed]);
@@ -153,10 +157,10 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer, push }: Tun
       const steerTarget = s.steer?.current ?? { x: 0, y: 0 };
       sx += (steerTarget.x - sx) * Math.min(1, dt * 4);
       sy += (steerTarget.y - sy) * Math.min(1, dt * 4);
-      const target = s.paused ? 0.04 : reduce ? 0.12 : (1 + s.boost + scroll) * (1 - 0.4 * dz);
+      const target = s.rising ? -7 : s.paused ? 0.04 : reduce ? 0.12 : (1 + s.boost + scroll) * (1 - 0.4 * dz);
       speed += (target - speed) * Math.min(1, dt * 3);
       s.onSpeed?.(speed);
-      spin += dt * (0.05 + m * 0.35) * Math.max(speed, 0.2);
+      spin += dt * (0.05 + m * 0.35) * Math.max(Math.abs(speed), 0.2);
 
       // Stranger tips gravity sideways: the vanishing point drifts and the whole hole rotates.
       const vx = w / 2 + m * w * 0.09 * Math.sin(t * 0.35) + sx * w * 0.12;
@@ -183,6 +187,7 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer, push }: Tun
       for (const ring of rings) {
         ring.z -= advance;
         if (ring.z < NEAR) ring.z += FAR - NEAR;
+        else if (ring.z > FAR) ring.z -= FAR - NEAR; // climbing out: rings vanish below and come round again
       }
       rings.sort((a, b) => b.z - a.z);
 
@@ -225,12 +230,12 @@ export function Tunnel({ mode, burst, paused, onSpeed, depth, steer, push }: Tun
       }
 
       // Particle streaks rushing past; longer when you fall faster.
-      const streak = clamp(0.08 + speed * 0.08, 0.06, 1.2);
+      const streak = clamp(0.08 + Math.abs(speed) * 0.08, 0.06, 1.2);
       ctx.lineCap = "round";
       for (const p of particles) {
         p.z -= advance * 1.35;
-        if (p.z < NEAR) {
-          p.z += FAR - NEAR;
+        if (p.z < NEAR || p.z > FAR) {
+          p.z += p.z < NEAR ? FAR - NEAR : NEAR - FAR;
           p.a = Math.random() * Math.PI * 2;
         }
         const angle = p.a + spin * (0.6 + m);

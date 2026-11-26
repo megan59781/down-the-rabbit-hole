@@ -3,7 +3,7 @@
 import { useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { createSession } from "@/lib/session/tree";
 import { sessionStore } from "@/lib/storage/sessions";
 import { JUMP_MS, JumpIn } from "./JumpIn";
@@ -16,6 +16,17 @@ export function BeginJourney() {
   const router = useRouter();
   const reduce = useReducedMotion();
   const [jumping, setJumping] = useState<string | null>(null);
+  const [visit, setVisit] = useState(0);
+  // Next keeps this page alive in the background after you leave (cacheComponents), state and
+  // all. Its effects re-run each time it's shown again: start fresh then, with an empty box and
+  // no half-finished jump replaying over the page.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setJumping(null);
+      setVisit((v) => v + 1);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   const lastSessionId = useSyncExternalStore(
     noopSubscribe,
     () => sessionStore.latestId(),
@@ -35,7 +46,7 @@ export function BeginJourney() {
 
   return (
     <div className="flex w-full flex-col items-center">
-      <ThoughtInput onSubmit={begin} />
+      <ThoughtInput key={visit} onSubmit={begin} />
       {lastSessionId ? (
         <Link
           href={`/explore/${lastSessionId}`}

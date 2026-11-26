@@ -40,6 +40,7 @@ npm run build
 10. **Catch the rabbit** (tap it, or press R while it's there) and it asks *you* something (see below).
 11. **🔊 Sound** (off until you switch it on, then remembered): wind that follows your falling speed, a cold hum for Deeper, a warbling shimmer for Stranger, an unsettled, wandering drone for Astray, and bells when you grab a question or new ones rise. All synthesised live with the Web Audio API.
 12. **? How it works**: a short, skippable spotlight tour of the fall (seven steps; arrow keys and Escape work). Offered at the start of each new fall (on the first question only) until you've taken it, and always one tap away in the header.
+13. **Climb out**: **+ New question** (or the logo) runs the tunnel in reverse and lifts you out of the hole before the landing page.
 
 The tunnel is a canvas animation; reduced-motion users get a slow, gentle version. Falls are saved in the browser (localStorage), so a refresh keeps everything.
 

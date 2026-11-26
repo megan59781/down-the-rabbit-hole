@@ -210,7 +210,8 @@ export class FallAudio {
     const nowMs = performance.now();
     if (nowMs - this.lastSpeedAt < 80) return;
     this.lastSpeedAt = nowMs;
-    const s = clamp(speed, 0, 6);
+    // Falling or climbing back out: the air rushes either way.
+    const s = clamp(Math.abs(speed), 0, 6);
     // Only falling faster than a drift makes any air: scrolling or diving, not hovering.
     const rush = Math.max(0, s - CALM_SPEED);
     const now = this.ctx.currentTime;

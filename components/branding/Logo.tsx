@@ -21,9 +21,11 @@ export function Logo({ className, compact = false }: LogoProps) {
           <span className="text-[0.6rem] font-medium tracking-[0.42em] text-muted">
             DOWN THE
           </span>
-          <span className="mt-1 flex items-center text-base font-semibold tracking-[0.18em]">
+          {/* The portal "O" sits on the baseline at capital height, with the same spacing after it
+              as the letters get from the tracking, so it reads as part of the word. */}
+          <span className="mt-1 block text-base font-semibold tracking-[0.18em] whitespace-nowrap">
             RABBIT&nbsp;H
-            <span className="mx-[0.08em] inline-block h-[0.78em] w-[0.52em] rounded-[50%] border-[2px] border-lavender shadow-[0_0_10px_rgb(183_154_255/0.6),inset_0_0_6px_rgb(183_154_255/0.5)]" />
+            <span className="mr-[0.18em] inline-block h-[0.7em] w-[0.56em] rounded-[50%] border-[2px] border-lavender align-baseline shadow-[0_0_10px_rgb(183_154_255/0.6),inset_0_0_6px_rgb(183_154_255/0.5)]" />
             LE
           </span>
         </span>
