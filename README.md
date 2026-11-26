@@ -33,7 +33,7 @@ npm run build
    - **✦ Stranger**: the tunnel twists into a pink spiral and tips sideways. Other worlds, odd angles.
    - **⇝ Astray**: the anti-algorithm. The hole leads you away from your own habits (see below).
 5. **Scroll or swipe** to fall faster; stop and you slow to a hover.
-6. **↑ Look up** pauses the fall. Two pages: **Your path** (the way down, with the questions you passed beside each step; tap any to fall back into it) and **About you** (what the hole has learned about your taste).
+6. **↑ Look up** pauses the fall. Two pages: **Your path** (the way down, with the questions you passed beside each step; tap any to fall back into it) and **About you** (what the rabbit has learnt about your taste).
 7. **↻ Let others rise** swaps in a fresh set.
 8. **Steer**: tilt your phone (or move the mouse on desktop) to lean the hole; the questions drift the other way.
 9. **Depth**: every level down is darker and slower, and the rabbit flashes past more often.
@@ -65,7 +65,7 @@ A feed learns what you like and gives you more of it. Astray learns what you lik
 3. **Meaning, on device**: a small sentence-embedding model (all-MiniLM-L6-v2 via transformers.js) runs in a Web Worker and places each question in a space of meaning. It downloads the first time you go Astray (about 45 MB, then cached; skipped on data-saver connections). Question text never leaves the device for this.
 4. **The inverted recommender** (`lib/astray/select.ts`): each candidate gets a familiarity score: how crowded your recent picks are around it in meaning-space, how much it matches your usual style and topics, and how close it is to the fall so far, minus a pull towards the things you skip. It keeps the 4 least familiar that still (loosely) grow from the held question, using maximal-marginal-relevance so they also differ from each other. Without the model, it steers by territory alone.
 5. **Made visible**: the candidates hover faintly while they stream in; the six turned down are struck through, marked "too you" and flung into the walls on their territory's side. The tunnel dents inwards on the side of your strongest habit and bends away from it, harder the more set in your ways you are. The rabbit names the habits it's working against.
-6. **Honest**: ↑ Look up shows what the hole thinks you like (topics and style), how it's steering, and a button to forget it all.
+6. **Honest**: ↑ Look up shows what the rabbit has learnt about you (topics and style), how it's steering, and a button to forget it all.
 
 ## AI
 

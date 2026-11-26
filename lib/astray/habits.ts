@@ -10,7 +10,7 @@ import {
   type Territory,
 } from "./territories";
 
-// What the hole has learned about your habits, from every question you grab in any direction:
+// What the rabbit has learnt about your habits, from every question you grab in any direction:
 // the topics and the kinds of question you reach for, and the ones you pass over.
 // Kept only in this browser. Shown to you in "Look up", and you can wipe it at any time.
 

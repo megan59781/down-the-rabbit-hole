@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { RabbitIcon } from "@/components/branding/RabbitIcon";
 import { embedderState, subscribeEmbedder } from "@/lib/astray/embedder";
 import { forgetHabits, getHabits, getServerHabits, leanings, narrowness, styleLean, subscribeHabits } from "@/lib/astray/habits";
 import { STYLE_AXES, type StyleAxis } from "@/lib/astray/territories";
@@ -13,7 +14,7 @@ const MODEL_TEXT = {
 } as const;
 
 /**
- * What the hole thinks you like, shown plainly. An algorithm that hides its model of you is
+ * What the rabbit has learnt about you, shown plainly. An algorithm that hides its model of you is
  * the thing this is against, so this one shows its working and lets you wipe it.
  */
 export function HabitMirror() {
@@ -24,10 +25,13 @@ export function HabitMirror() {
   const style = Object.entries(styleLean(habits)) as [StyleAxis, number][];
 
   return (
-    <section aria-label="Your habits" className="w-full max-w-md rounded-2xl border border-lavender/25 bg-midnight-2/60 p-5 sm:p-6">
-      <p className="font-display text-xs tracking-[0.3em] text-lavender uppercase">⇝ What the hole thinks you like</p>
+    <section aria-label="What the rabbit has learnt about you" className="w-full max-w-md rounded-2xl border border-lavender/25 bg-midnight-2/60 p-5 sm:p-6">
+      <p className="flex items-center gap-2 font-display text-xs tracking-[0.3em] text-lavender uppercase">
+        <RabbitIcon className="h-4 w-4 shrink-0" />
+        What the rabbit has learnt about you
+      </p>
       {lean.length === 0 ? (
-        <p className="mt-3 text-sm text-muted">Nothing yet. Every question you grab teaches it a little.</p>
+        <p className="mt-3 text-sm text-muted">Nothing yet. Every question you grab teaches the rabbit a little.</p>
       ) : (
         <>
           <ul className="mt-4 flex flex-col gap-2">

@@ -109,7 +109,7 @@ export function FallView({ sessionId }: { sessionId: string }) {
   const heldX = useTransform(steering.x, (v) => v * 8);
   const heldY = useTransform(steering.y, (v) => v * 6);
 
-  // What the hole has learned about you (this browser only). Astray steers against it.
+  // What the rabbit has learnt about you (this browser only). Astray steers against it.
   const habits = useSyncExternalStore(subscribeHabits, getHabits, getServerHabits);
   const avoiding = habitTerritories(habits, 2);
   const avoidingStyle = styleHabits(habits).slice(0, 2);

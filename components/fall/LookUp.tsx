@@ -14,7 +14,7 @@ const MODE_GLYPH = { deeper: "↓", stranger: "✦", astray: "⇝" } as const;
 
 const PAGES = [
   { id: "path", label: "Your path", glyph: "↑" },
-  { id: "you", label: "About you", glyph: "⇝" },
+  { id: "you", label: "About you", glyph: "rabbit" },
 ] as const;
 type Page = (typeof PAGES)[number]["id"];
 
@@ -26,7 +26,7 @@ type LookUpProps = {
 
 /**
  * Pause the fall and look back up the hole. Two pages: the path you fell (and what you passed
- * on the way), and what the hole has learned about you.
+ * on the way), and what the rabbit has learnt about you.
  */
 export function LookUp({ session, onJump, onClose }: LookUpProps) {
   const [page, setPage] = useState<Page>("path");
@@ -98,7 +98,11 @@ export function LookUp({ session, onJump, onClose }: LookUpProps) {
                   />
                 ) : null}
                 <span className="relative">
-                  <span aria-hidden>{p.glyph} </span>
+                  {p.glyph === "rabbit" ? (
+                    <RabbitIcon className="mr-1 inline h-4 w-4 align-[-3px]" />
+                  ) : (
+                    <span aria-hidden>{p.glyph} </span>
+                  )}
                   {p.label}
                 </span>
               </button>
