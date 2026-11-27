@@ -1,5 +1,6 @@
 import { AIError, getProvider } from "@/lib/ai/provider";
 import { errorResponse, handleAIError, notConfigured, readJson } from "@/lib/ai/http";
+import { ndjsonWriter } from "@/lib/ai/ndjson";
 import { askRabbit } from "@/lib/ai/rabbit";
 import { checkRateLimit, clientIdOf, isSameOrigin, needsCare } from "@/lib/ai/safety";
 import { RabbitRequestSchema } from "@/lib/schemas";
@@ -38,10 +39,9 @@ export async function POST(request: Request) {
     }
   }
 
-  const encoder = new TextEncoder();
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (event: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`));
+      const { send, close } = ndjsonWriter(controller, request.signal);
       try {
         for await (const event of askRabbit(provider, input.question, request.signal)) send(event);
         send({ type: "done" });
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
           });
         }
       } finally {
-        controller.close();
+        close();
       }
     },
   });

@@ -201,7 +201,8 @@ export async function* streamQuestions(
   if (buffer) yield* readLine(buffer);
   yield* finish();
 
-  if (sent < 2) {
+  // Only an error if nothing rose at all: a question that did arrive is already on screen.
+  if (sent === 0) {
     throw new AIError("The questions got lost on the way. Please try again.", 502);
   }
 }

@@ -2,7 +2,7 @@
 
 import { clsx } from "clsx";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { RabbitIcon } from "@/components/branding/RabbitIcon";
 import { streamRabbit } from "@/lib/explore/client";
 import { MAX_ANSWER_LENGTH } from "@/lib/schemas";
@@ -36,7 +36,8 @@ export function RabbitAsks({
   useEffect(() => {
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    streamRabbit(holding, (event) => {
+    const abort = new AbortController();
+    streamRabbit(holding, abort.signal, (event) => {
       if (!live) return;
       if (event.type === "candidate") {
         setCandidates((c) => {
@@ -59,13 +60,17 @@ export function RabbitAsks({
     });
     return () => {
       live = false;
+      // Closing the card stops the rabbit's AI calls too, rather than letting them run unseen.
+      abort.abort();
       if (timer) clearTimeout(timer);
     };
   }, [holding]);
 
-  useEffect(() => {
-    if (asking) input.current?.focus();
-  }, [asking]);
+  // Focus the answer box as it appears (it mounts only after the self-test has animated out).
+  const attachInput = useCallback((el: HTMLTextAreaElement | null) => {
+    input.current = el;
+    el?.focus();
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -179,7 +184,7 @@ export function RabbitAsks({
                 ) : null}
                 <textarea
                   id={`${titleId}-answer`}
-                  ref={input}
+                  ref={attachInput}
                   value={said}
                   onChange={(e) => setSaid(e.target.value.slice(0, MAX_ANSWER_LENGTH))}
                   onKeyDown={(e) => {

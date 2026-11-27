@@ -11,14 +11,17 @@ async function streamEvents<T extends { type: string }>(
   body: unknown,
   schema: z.ZodType<T>,
   onEvent: (event: T) => void,
+  /** Cancels the request (and, through the server, its AI calls) when the caller loses interest. */
+  cancel?: AbortSignal,
 ): Promise<void> {
+  const timeout = AbortSignal.timeout(CLIENT_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(CLIENT_TIMEOUT_MS),
+      signal: cancel ? AbortSignal.any([timeout, cancel]) : timeout,
     });
   } catch (error) {
     const timedOut = error instanceof DOMException && error.name === "TimeoutError";
@@ -94,11 +97,21 @@ export async function streamQuestions(
 export type RabbitTestEvent = z.infer<typeof RabbitEventSchema>;
 
 /** Catch the rabbit: streams its self-test, ending with which candidate it will ask. */
-export async function streamRabbit(question: string, onEvent: (event: RabbitTestEvent) => void): Promise<void> {
+export async function streamRabbit(
+  question: string,
+  cancel: AbortSignal,
+  onEvent: (event: RabbitTestEvent) => void,
+): Promise<void> {
   let asked = false;
-  await streamEvents("/api/rabbit", { question }, RabbitEventSchema, (event) => {
-    if (event.type === "ask") asked = true;
-    onEvent(event);
-  });
+  await streamEvents(
+    "/api/rabbit",
+    { question },
+    RabbitEventSchema,
+    (event) => {
+      if (event.type === "ask") asked = true;
+      onEvent(event);
+    },
+    cancel,
+  );
   if (!asked) throw new Error("The rabbit lost its question. Please try again.");
 }

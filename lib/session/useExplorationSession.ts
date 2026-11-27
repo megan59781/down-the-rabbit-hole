@@ -5,6 +5,7 @@ import { embedderState } from "@/lib/astray/embedder";
 import { getHabits, habitTerritories, tasteProfile } from "@/lib/astray/habits";
 import { selectAstray } from "@/lib/astray/select";
 import { streamQuestions } from "@/lib/explore/client";
+import { MAX_EXCLUDE } from "@/lib/schemas";
 import { sessionStore } from "@/lib/storage/sessions";
 import type { ExplorationMode, ExplorationSession, GeneratedQuestion } from "@/lib/types";
 import { addQuestions, addRabbitAnswer, childrenOf, getNode, pathTo, risingFrom, setPassedOver } from "./tree";
@@ -67,7 +68,11 @@ export function useExplorationSession(sessionId: string) {
             // Each new set grows only from the question you're holding, not the steps before it.
             path: [],
             mode,
-            exclude: childrenOf(s, nodeId).map((n) => n.text),
+            // The most recent ones only: the API takes at most MAX_EXCLUDE, and after many rounds of
+            // "Let others rise" a question can have more children than that.
+            exclude: childrenOf(s, nodeId)
+              .slice(-MAX_EXCLUDE)
+              .map((n) => n.text),
             // Your taste: Deeper and Stranger lean gently towards it, Astray writes against it.
             habits: habitTerritories(getHabits()),
             profile: tasteProfile(getHabits()),

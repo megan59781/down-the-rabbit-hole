@@ -2,6 +2,8 @@ import { z } from "zod";
 import { STYLE_AXES, STYLE_VALUES, TERRITORIES } from "@/lib/astray/territories";
 
 export const MAX_QUESTION_LENGTH = 280;
+/** How many already-rising questions a request may list, so new ones don't repeat them. */
+export const MAX_EXCLUDE = 40;
 
 export const ModeSchema = z.enum(["deeper", "stranger", "astray"]);
 
@@ -11,7 +13,7 @@ export const QuestionsRequestSchema = z.object({
   path: z.array(z.string().max(MAX_QUESTION_LENGTH)).max(8).default([]),
   mode: ModeSchema,
   /** Questions already rising from this one, so new ones don't repeat them. */
-  exclude: z.array(z.string().max(MAX_QUESTION_LENGTH)).max(40).default([]),
+  exclude: z.array(z.string().max(MAX_QUESTION_LENGTH)).max(MAX_EXCLUDE).default([]),
   /** Astray only: the territories this person keeps choosing, so the AI can write away from them. */
   habits: z.array(z.enum(TERRITORIES)).max(5).default([]),
   /** You answered the rabbit: new questions grow out of what you said (never a reply to it). */

@@ -104,9 +104,12 @@ export function Tour({ onDone }: { onDone: () => void }) {
     return () => cancelAnimationFrame(raf);
   }, [step.target]);
 
-  useEffect(() => {
-    card.current?.focus();
-  }, [index, confirming]);
+  // Focus each card as it appears. (An effect on [index] would run while the previous card is
+  // still animating out under AnimatePresence mode="wait", and focus that one instead.)
+  const attachCard = useCallback((el: HTMLDivElement | null) => {
+    card.current = el;
+    el?.focus();
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -164,7 +167,7 @@ export function Tour({ onDone }: { onDone: () => void }) {
         <AnimatePresence mode="wait">
           <motion.div
             key={confirming ? "confirm" : index}
-            ref={card}
+            ref={attachCard}
             tabIndex={-1}
             role="dialog"
             aria-modal="true"

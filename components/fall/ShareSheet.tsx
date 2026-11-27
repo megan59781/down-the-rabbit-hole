@@ -142,9 +142,16 @@ export function ShareSheet({
   const canCopy =
     typeof window !== "undefined" && "ClipboardItem" in window && Boolean(navigator.clipboard?.write);
 
+  // One status message at a time: a new one restarts the timer instead of being cut short by an
+  // older one, and nothing fires after the sheet has closed.
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+  }, []);
   const flash = (message: string) => {
     setStatus(message);
-    setTimeout(() => setStatus(null), 2200);
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    flashTimer.current = setTimeout(() => setStatus(null), 2200);
   };
 
   // The words that go with the card. The link sits in the text itself, because many apps drop a

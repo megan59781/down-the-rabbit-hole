@@ -3,7 +3,8 @@ import "server-only";
 // A fast first check for questions that need care rather than play. The model also flags
 // these itself (CARE: yes); this catches the clearest cases before it even starts.
 const CARE_PATTERNS = [
-  /\b(kill|hurt|harm)(ing)?\s+(my\s?self|me)\b/i,
+  // "myself", not "me": "why do sad songs hurt me so much?" is curiosity, not crisis.
+  /\b(kill|hurt|harm)(ing)?\s+my\s?self\b/i,
   /\bsuicid/i,
   /\bself[-\s]?harm/i,
   /\b(end|ending|take|taking)\s+my\s+(own\s+)?life\b/i,
@@ -60,8 +61,12 @@ export function checkRateLimit(clientId: string, now = Date.now()): Limit {
 
 /** Best guess at who's asking, for rate limiting only. Never stored or logged. */
 export function clientIdOf(request: Request): string {
+  // Prefer what the host sets itself (Vercel overwrites these); a visitor can put anything in
+  // their own X-Forwarded-For, which would hand them a fresh rate-limit bucket every request.
+  const platform =
+    request.headers.get("x-vercel-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip")?.trim();
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip") || "local";
+  return platform || forwarded || "local";
 }
 
 /**
