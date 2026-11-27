@@ -4,6 +4,7 @@
 // every device, nothing sent anywhere until the person chooses where to share it.
 
 import { RABBIT_PATH } from "@/components/branding/RabbitIcon";
+import { MODES } from "@/lib/modes";
 import { displayUrl, siteUrl } from "@/lib/site";
 import type { ExplorationMode } from "@/lib/types";
 
@@ -33,7 +34,6 @@ const C = {
   soft: "#f2eff8",
   muted: "#a9a3b7",
 };
-const MODE_COLOUR: Record<ExplorationMode, string> = { deeper: C.ice, stranger: C.pink, astray: C.lavender };
 const PAD = 88;
 
 type Fonts = { serif: string; display: string; sans: string };
@@ -326,7 +326,7 @@ function drawPath(ctx: CanvasRenderingContext2D, f: Fonts, data: PathCardData, w
       continue;
     }
     const { step, first, last } = m.block;
-    const colour = first ? C.lavender : MODE_COLOUR[step.mode];
+    const colour = first ? C.lavender : MODES[step.mode].hex;
     // The roads not taken, drawn just above the one you took, each a dashed branch off the thread.
     (m.passed ?? []).forEach((q, k) => {
       const ly = y + (k + 1) * PASSED_LH * scale;

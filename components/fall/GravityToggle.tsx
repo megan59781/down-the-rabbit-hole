@@ -2,13 +2,10 @@
 
 import { clsx } from "clsx";
 import { motion } from "framer-motion";
+import { MODE_ORDER, MODES } from "@/lib/modes";
 import type { ExplorationMode } from "@/lib/types";
 
-const OPTIONS = [
-  { mode: "deeper", label: "Deeper", glyph: "↓", pill: "bg-ice", hint: "Fall straight down: assumptions, causes, what's underneath" },
-  { mode: "stranger", label: "Stranger", glyph: "✦", pill: "bg-pink", hint: "Gravity tips sideways: other worlds, odd angles" },
-  { mode: "astray", label: "Astray", glyph: "⇝", pill: "bg-lavender", hint: "Away from your habits: the hole learns what you pick and leads you elsewhere" },
-] as const;
+const OPTIONS = MODE_ORDER.map((mode) => ({ mode, ...MODES[mode] }));
 
 /** Flips the direction of the fall. */
 export function GravityToggle({ mode, onChange }: { mode: ExplorationMode; onChange: (mode: ExplorationMode) => void }) {
@@ -36,7 +33,7 @@ export function GravityToggle({ mode, onChange }: { mode: ExplorationMode; onCha
             {active ? (
               <motion.span
                 layoutId="gravity-pill"
-                className={clsx("absolute inset-0 rounded-full", o.pill)}
+                className={clsx("absolute inset-0 rounded-full", o.pillClass)}
                 transition={{ type: "spring", stiffness: 300, damping: 28 }}
               />
             ) : null}

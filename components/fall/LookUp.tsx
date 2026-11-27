@@ -5,13 +5,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Footprints } from "@/components/branding/RabbitGuide";
 import { RabbitIcon } from "@/components/branding/RabbitIcon";
+import { MODES } from "@/lib/modes";
 import { childrenOf, pathTo } from "@/lib/session/tree";
 import type { ExplorationSession } from "@/lib/types";
 import { HabitMirror } from "./HabitMirror";
 import { ShareSheet } from "./ShareSheet";
 
-const MODE_TEXT = { deeper: "text-ice", stranger: "text-pink", astray: "text-lavender" } as const;
-const MODE_GLYPH = { deeper: "↓", stranger: "✦", astray: "⇝" } as const;
 
 const PAGES = [
   { id: "path", label: "Your fall", glyph: "↑" },
@@ -186,7 +185,7 @@ function PathPage({ session, onJump, onClose }: LookUpProps) {
                       className="max-w-[14rem] truncate text-xs text-muted/60 transition hover:text-soft"
                       title="Fall into this one instead"
                     >
-                      <span className={MODE_TEXT[s.mode]}>?</span> {s.text}
+                      <span className={MODES[s.mode].textClass}>?</span> {s.text}
                     </button>
                   ))}
                 </div>
@@ -211,8 +210,8 @@ function PathPage({ session, onJump, onClose }: LookUpProps) {
                   </>
                 ) : (
                   <>
-                    <span className={clsx("text-xs", i === 0 ? "text-lavender" : MODE_TEXT[node.mode])}>
-                      {i === 0 ? "◯" : MODE_GLYPH[node.mode]}
+                    <span className={clsx("text-xs", i === 0 ? "text-lavender" : MODES[node.mode].textClass)}>
+                      {i === 0 ? "◯" : MODES[node.mode].glyph}
                     </span>
                     <span className={clsx(i === 0 ? "font-serif text-lg" : "text-sm", "text-soft")}>{node.text}</span>
                   </>
