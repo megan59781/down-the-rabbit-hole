@@ -2,7 +2,8 @@ import { AIError, getProvider } from "@/lib/ai/provider";
 import { errorResponse, handleAIError, notConfigured, readJson } from "@/lib/ai/http";
 import { ndjsonWriter } from "@/lib/ai/ndjson";
 import { streamQuestions } from "@/lib/ai/questions";
-import { checkRateLimit, clientIdOf, isSameOrigin } from "@/lib/ai/safety";
+import { checkRateLimit } from "@/lib/ai/rateLimit";
+import { clientIdOf, isSameOrigin } from "@/lib/ai/safety";
 import { QuestionsRequestSchema } from "@/lib/schemas";
 
 export const maxDuration = 60;
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
   }
   if (!provider) return notConfigured();
 
-  const limit = checkRateLimit(clientIdOf(request));
+  const limit = await checkRateLimit(clientIdOf(request));
   if (!limit.ok) {
     return Response.json(
       { error: limit.message, retryable: true },

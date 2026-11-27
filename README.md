@@ -84,11 +84,12 @@ All model calls happen server-side; the browser never sees the key.
 | `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_PER_HOUR` | per-visitor limits (default 40 / 300) |
 | `AI_DAILY_CAP` | total AI calls per day across everyone, a spending cap (default 3000) |
 | `NEXT_PUBLIC_SITE_URL` | the public address, shown on share cards and in share captions (defaults to wherever the site is open) |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | optional: share rate limits and the daily cap across server instances |
 
 - **Fast:** questions stream in one by one as the model writes them (first one in about a second). Once they've risen, the next level is quietly grown for each (two at a time), so diving is usually instant.
 - **Safe by default:** every streamed line is validated on the server and again in the browser. Nothing model-generated is executed.
 - **Care first:** questions that sound like real distress (a keyword check, plus the model's own flag) get gentle, grounded questions whatever the mode, and a calm support note with Samaritans and findahelpline.com.
-- **Abuse and cost controls:** same-origin check, per-visitor rate limits, a daily cap, and a small output token cap. Limits are in memory (per server instance); use a shared store such as Upstash Redis before real public traffic.
+- **Abuse and cost controls:** same-origin check, per-visitor rate limits, a daily cap, and a small output token cap. With `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` set, the limits and the daily cap are shared across every server instance (Upstash Redis, over its REST API); without them they are kept in memory per instance. If Redis is unreachable, requests are let through and a warning is logged.
 - **Privacy:** questions go to the AI to grow new ones and are never stored or logged on the server; falls and habits live in the browser's localStorage. Once you've chosen a few times, your style lean and a few recent picks and skips are sent along with the question, so the AI can lean towards your taste (Deeper, Stranger) or write against it (Astray). Astray's embedding library and model weights come from jsDelivr and Hugging Face; no question text is sent to either.
 - Requests run at low effort for responsiveness, with Anthropic's server-side refusal fallback enabled.
 

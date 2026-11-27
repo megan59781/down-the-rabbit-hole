@@ -2,7 +2,8 @@ import { AIError, getProvider } from "@/lib/ai/provider";
 import { errorResponse, handleAIError, notConfigured, readJson } from "@/lib/ai/http";
 import { ndjsonWriter } from "@/lib/ai/ndjson";
 import { askRabbit } from "@/lib/ai/rabbit";
-import { checkRateLimit, clientIdOf, isSameOrigin, needsCare } from "@/lib/ai/safety";
+import { checkRateLimit } from "@/lib/ai/rateLimit";
+import { clientIdOf, isSameOrigin, needsCare } from "@/lib/ai/safety";
 import { RabbitRequestSchema } from "@/lib/schemas";
 
 export const maxDuration = 60;
@@ -28,15 +29,12 @@ export async function POST(request: Request) {
   if (!provider) return notConfigured();
 
   // A write and a test per round (usually one round): counted as two calls against the limits.
-  const id = clientIdOf(request);
-  for (let i = 0; i < 2; i++) {
-    const limit = checkRateLimit(id);
-    if (!limit.ok) {
-      return Response.json(
-        { error: limit.message, retryable: true },
-        { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
-      );
-    }
+  const limit = await checkRateLimit(clientIdOf(request), { cost: 2 });
+  if (!limit.ok) {
+    return Response.json(
+      { error: limit.message, retryable: true },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
+    );
   }
 
   const body = new ReadableStream<Uint8Array>({
