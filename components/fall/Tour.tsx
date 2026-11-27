@@ -69,6 +69,8 @@ export function Tour({ onDone }: { onDone: () => void }) {
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<Rect | null>(null);
   const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  // Clicking outside the card asks before ending, so a stray tap doesn't lose your place.
+  const [confirming, setConfirming] = useState(false);
   const card = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const step = STEPS[index];
@@ -104,17 +106,18 @@ export function Tour({ onDone }: { onDone: () => void }) {
 
   useEffect(() => {
     card.current?.focus();
-  }, [index]);
+  }, [index, confirming]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") finish();
+      else if (confirming) return;
       else if (e.key === "ArrowRight") setIndex((i) => Math.min(i + 1, STEPS.length - 1));
       else if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [finish]);
+  }, [finish, confirming]);
 
   // Put the card below the spotlight if there's room, otherwise above; centred if there's no target.
   const cardW = Math.min(CARD_W, viewport.w - 32);
@@ -136,6 +139,9 @@ export function Tour({ onDone }: { onDone: () => void }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
+      onClick={(e) => {
+        if (!card.current?.contains(e.target as Node)) setConfirming(true);
+      }}
     >
       {/* The dimmed hole, with a soft spotlight cut around whatever this step is about. */}
       {rect ? (
@@ -157,7 +163,7 @@ export function Tour({ onDone }: { onDone: () => void }) {
       <div className={rect ? undefined : "pointer-events-none absolute inset-0 grid place-items-center"}>
         <AnimatePresence mode="wait">
           <motion.div
-            key={index}
+            key={confirming ? "confirm" : index}
             ref={card}
             tabIndex={-1}
             role="dialog"
@@ -173,48 +179,75 @@ export function Tour({ onDone }: { onDone: () => void }) {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.2 }}
           >
-            <div className="flex items-start gap-3">
-              {step.rabbit ? (
-                <RabbitIcon className="h-9 w-9 shrink-0 text-soft drop-shadow-[0_0_10px_rgb(183_154_255/0.9)]" />
-              ) : null}
-              <div>
+            {confirming ? (
+              <>
                 <p id={titleId} className="font-display text-sm font-semibold text-soft">
-                  {step.title}
+                  End the tour?
                 </p>
-                <p className="mt-1 text-sm text-muted">{step.body}</p>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center justify-between gap-2">
-              <span className="text-xs text-muted/70 tabular-nums">
-                {index + 1} / {STEPS.length}
-              </span>
-              <div className="flex items-center gap-1">
-                {index === 0 ? (
+                <p className="mt-1 text-sm text-muted">You can bring it back any time with the ? button.</p>
+                <div className="mt-4 flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setConfirming(false)}
+                    className="rounded-full px-3 py-1.5 text-xs text-muted hover:text-soft"
+                  >
+                    Keep going
+                  </button>
                   <button
                     type="button"
                     onClick={finish}
-                    className="rounded-full px-3 py-1.5 text-xs text-muted hover:text-soft"
+                    className="rounded-full bg-lavender px-4 py-1.5 font-display text-xs font-semibold text-midnight hover:bg-soft"
                   >
-                    Skip
+                    End tour
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIndex((i) => i - 1)}
-                    className="rounded-full px-3 py-1.5 text-xs text-muted hover:text-soft"
-                  >
-                    Back
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => (last ? finish() : setIndex((i) => i + 1))}
-                  className="rounded-full bg-lavender px-4 py-1.5 font-display text-xs font-semibold text-midnight hover:bg-soft"
-                >
-                  {last ? "Start falling ↓" : "Next"}
-                </button>
-              </div>
-            </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-start gap-3">
+                  {step.rabbit ? (
+                    <RabbitIcon className="h-9 w-9 shrink-0 text-soft drop-shadow-[0_0_10px_rgb(183_154_255/0.9)]" />
+                  ) : null}
+                  <div>
+                    <p id={titleId} className="font-display text-sm font-semibold text-soft">
+                      {step.title}
+                    </p>
+                    <p className="mt-1 text-sm text-muted">{step.body}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <span className="text-xs text-muted/70 tabular-nums">
+                    {index + 1} / {STEPS.length}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {index === 0 ? (
+                      <button
+                        type="button"
+                        onClick={finish}
+                        className="rounded-full px-3 py-1.5 text-xs text-muted hover:text-soft"
+                      >
+                        Skip
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIndex((i) => i - 1)}
+                        className="rounded-full px-3 py-1.5 text-xs text-muted hover:text-soft"
+                      >
+                        Back
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => (last ? finish() : setIndex((i) => i + 1))}
+                      className="rounded-full bg-lavender px-4 py-1.5 font-display text-xs font-semibold text-midnight hover:bg-soft"
+                    >
+                      {last ? "Start falling ↓" : "Next"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </motion.div>
         </AnimatePresence>
       </div>
