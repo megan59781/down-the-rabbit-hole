@@ -86,9 +86,14 @@ export function Tour({ onDone }: { onDone: () => void }) {
     let raf = 0;
     let prev = "";
     const measure = () => {
-      const el = step.target ? document.querySelector<HTMLElement>(`[data-tour="${step.target}"]`) : null;
-      const r = el?.getBoundingClientRect();
-      const next = r && r.width > 0 ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
+      // The visible one: Next keeps earlier pages alive but hidden, so a previous fall's copy of
+      // the same element can still be in the document (with a zero-sized box).
+      const r = step.target
+        ? [...document.querySelectorAll<HTMLElement>(`[data-tour="${step.target}"]`)]
+            .map((el) => el.getBoundingClientRect())
+            .find((box) => box.width > 0)
+        : undefined;
+      const next = r ? { x: r.left, y: r.top, w: r.width, h: r.height } : null;
       const key = next
         ? `${Math.round(next.x)},${Math.round(next.y)},${Math.round(next.w)},${Math.round(next.h)}`
         : "none";

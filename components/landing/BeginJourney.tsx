@@ -3,7 +3,7 @@
 import { useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createSession } from "@/lib/session/tree";
 import { sessionStore } from "@/lib/storage/sessions";
 import { JUMP_MS, JumpIn } from "./JumpIn";
@@ -19,8 +19,14 @@ export function BeginJourney() {
   const [visit, setVisit] = useState(0);
   // Next keeps this page alive in the background after you leave (cacheComponents), state and
   // all. Its effects re-run each time it's shown again: start fresh then, with an empty box and
-  // no half-finished jump replaying over the page.
+  // no half-finished jump replaying over the page. Only on a return, though: resetting on the
+  // first visit would wipe anything typed straight after the page loads.
+  const shownBefore = useRef(false);
   useEffect(() => {
+    if (!shownBefore.current) {
+      shownBefore.current = true;
+      return;
+    }
     const timer = setTimeout(() => {
       setJumping(null);
       setVisit((v) => v + 1);
