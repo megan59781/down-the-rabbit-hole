@@ -5,6 +5,23 @@ import type { ExplorationMode, GeneratedQuestion } from "@/lib/types";
 
 const CLIENT_TIMEOUT_MS = 70_000;
 
+/**
+ * A signal that aborts when either does. AbortSignal.any where it exists; older browsers
+ * (Safari before 17.4) get the same thing built by hand.
+ */
+export function anySignal(a: AbortSignal, b: AbortSignal): AbortSignal {
+  if (typeof AbortSignal.any === "function") return AbortSignal.any([a, b]);
+  const both = new AbortController();
+  for (const signal of [a, b]) {
+    if (signal.aborted) {
+      both.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener("abort", () => both.abort(signal.reason), { once: true });
+  }
+  return both.signal;
+}
+
 /** POST `body` to `url` and hand each valid NDJSON event to `onEvent`. Server errors throw. */
 async function streamEvents<T extends { type: string }>(
   url: string,
@@ -21,7 +38,7 @@ async function streamEvents<T extends { type: string }>(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      signal: cancel ? AbortSignal.any([timeout, cancel]) : timeout,
+      signal: cancel ? anySignal(timeout, cancel) : timeout,
     });
   } catch (error) {
     const timedOut = error instanceof DOMException && error.name === "TimeoutError";

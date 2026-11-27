@@ -20,18 +20,22 @@ export function BeginJourney() {
   // Next keeps this page alive in the background after you leave (cacheComponents), state and
   // all. Its effects re-run each time it's shown again: start fresh then, with an empty box and
   // no half-finished jump replaying over the page. Only on a return, though: resetting on the
-  // first visit would wipe anything typed straight after the page loads.
-  const shownBefore = useRef(false);
+  // first visit would wipe anything typed straight after the page loads. "A return" means it was
+  // hidden for a moment, which also ignores React's instant re-run of effects in development.
+  const hiddenAt = useRef<number | null>(null);
   useEffect(() => {
-    if (!shownBefore.current) {
-      shownBefore.current = true;
-      return;
-    }
-    const timer = setTimeout(() => {
-      setJumping(null);
-      setVisit((v) => v + 1);
-    }, 0);
-    return () => clearTimeout(timer);
+    const returning = hiddenAt.current !== null && Date.now() - hiddenAt.current > 250;
+    hiddenAt.current = null;
+    const timer = returning
+      ? setTimeout(() => {
+          setJumping(null);
+          setVisit((v) => v + 1);
+        }, 0)
+      : undefined;
+    return () => {
+      if (timer) clearTimeout(timer);
+      hiddenAt.current = Date.now();
+    };
   }, []);
   const lastSessionId = useSyncExternalStore(
     noopSubscribe,

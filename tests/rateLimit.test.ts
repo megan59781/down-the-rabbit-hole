@@ -40,29 +40,31 @@ describe("checkRateLimit, with Upstash Redis", () => {
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
   });
 
-  const reply = (minute: number, hour: number, day: number) =>
-    ({
-      ok: true,
-      json: async () => [{ result: minute }, { result: 1 }, { result: hour }, { result: 1 }, { result: day }, { result: 1 }],
-    }) as Response;
+  // Upstash answers a pipeline with one { result } per command (INCRBY, then EXPIRE, per key).
+  const reply = (...counts: number[]) =>
+    ({ ok: true, json: async () => counts.flatMap((n) => [{ result: n }, { result: 1 }]) }) as Response;
 
-  it("counts in shared windows that expire on their own", async () => {
-    fetchMock.mockResolvedValue(reply(1, 1, 1));
+  it("counts the visitor's windows, then the day's total, in windows that expire on their own", async () => {
+    fetchMock.mockResolvedValueOnce(reply(1, 1)).mockResolvedValueOnce(reply(1));
     expect((await checkRateLimit("1.2.3.4", { cost: 2, now: NOW })).ok).toBe(true);
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe("https://redis.example/pipeline");
     expect(init.headers.Authorization).toBe("Bearer test-token");
-    const commands = JSON.parse(init.body);
-    expect(commands[0]).toEqual(["INCRBY", `rh:m:1.2.3.4:${Math.floor(NOW / 60_000)}`, "2"]);
-    expect(commands[1][0]).toBe("EXPIRE");
-    expect(commands[4][1]).toBe("rh:d:2026-01-01");
+    const visitor = JSON.parse(init.body);
+    expect(visitor[0]).toEqual(["INCRBY", `rh:m:1.2.3.4:${Math.floor(NOW / 60_000)}`, "2"]);
+    expect(visitor[1][0]).toBe("EXPIRE");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)[0]).toEqual(["INCRBY", "rh:d:2026-01-01", "2"]);
   });
 
-  it("refuses over the minute limit and over the daily cap", async () => {
-    fetchMock.mockResolvedValueOnce(reply(41, 41, 41));
+  it("refuses over the minute limit without spending the shared daily cap", async () => {
+    fetchMock.mockResolvedValueOnce(reply(41, 41));
     expect(await checkRateLimit("1.2.3.4", { now: NOW })).toMatchObject({ ok: false, retryAfter: 30 });
-    fetchMock.mockResolvedValueOnce(reply(1, 1, 3001));
-    expect(await checkRateLimit("1.2.3.4", { now: NOW })).toMatchObject({ ok: false, retryAfter: 3600 });
+    expect(fetchMock).toHaveBeenCalledTimes(1); // the day's total was never touched
+  });
+
+  it("refuses everyone once the daily cap is reached", async () => {
+    fetchMock.mockResolvedValueOnce(reply(1, 1)).mockResolvedValueOnce(reply(3001));
+    expect(await checkRateLimit("5.6.7.8", { now: NOW })).toMatchObject({ ok: false, retryAfter: 3600 });
   });
 
   it("lets requests through if Redis can't be reached, rather than taking the site down", async () => {

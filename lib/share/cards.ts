@@ -271,7 +271,8 @@ function drawPath(ctx: CanvasRenderingContext2D, f: Fonts, data: PathCardData, w
   // Fit: shrink the type a little, then fold the middle of a long fall into "… N more …".
   let chosen: Measured[] = [];
   let scale = 1;
-  outer: for (let keep = steps.length; keep >= 3; keep--) {
+  // Always try the whole fall first (even a fall of one or two steps); fold only longer ones.
+  outer: for (let keep = steps.length; keep >= Math.min(3, steps.length); keep--) {
     const blocks: Block[] =
       keep === steps.length
         ? steps.map((s, i) => ({ kind: "step", step: s, first: i === 0, last: i === steps.length - 1 }))
@@ -296,20 +297,18 @@ function drawPath(ctx: CanvasRenderingContext2D, f: Fonts, data: PathCardData, w
     }
   }
   if (chosen.length === 0) {
-    // Even folded it won't fit (very long questions): smallest type, first and last only.
+    // Even folded it won't fit (very long questions): smallest type, first and last only, with a
+    // gap only if it actually hides something.
     scale = 0.72;
-    chosen = measurePath(
-      ctx,
-      f,
-      [
-        { kind: "step", step: steps[0], first: true, last: false },
-        { kind: "gap", hidden: steps.length - 2 },
-        { kind: "step", step: steps[steps.length - 1], first: false, last: true },
-      ],
-      scale,
-      data,
-      textW,
-    );
+    const ends: Block[] =
+      steps.length === 1
+        ? [{ kind: "step", step: steps[0], first: true, last: true }]
+        : [
+            { kind: "step", step: steps[0], first: true, last: false },
+            ...(steps.length > 2 ? [{ kind: "gap" as const, hidden: steps.length - 2 }] : []),
+            { kind: "step", step: steps[steps.length - 1], first: false, last: true },
+          ];
+    chosen = measurePath(ctx, f, ends, scale, data, textW);
   }
 
   const total = chosen.reduce((sum, b) => sum + b.height, 0) + GAP * scale * (chosen.length - 1);

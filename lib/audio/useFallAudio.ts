@@ -53,7 +53,15 @@ export function useFallAudio(mode: ExplorationMode) {
     };
   }, [soundOn, startAudio]);
 
-  useEffect(() => () => audio.current?.dispose(), []);
+  // Close the audio when the page goes away, and forget it: Next keeps visited pages alive and
+  // re-shows them, and a closed AudioContext can't be resumed, so the next gesture makes a new one.
+  useEffect(
+    () => () => {
+      audio.current?.dispose();
+      audio.current = null;
+    },
+    [],
+  );
 
   const toggleSound = useCallback(() => {
     const next = !soundOn;

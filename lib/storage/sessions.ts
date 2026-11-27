@@ -5,7 +5,7 @@ export interface SessionStore {
   get(id: string): ExplorationSession | null;
   save(session: ExplorationSession): void;
   remove(id: string): void;
-  /** Most recently created session id, if any. */
+  /** The fall you were last in (most recently saved), if any. */
   latestId(): string | null;
 }
 
@@ -33,9 +33,18 @@ function isSession(value: unknown): value is ExplorationSession {
   );
 }
 
+/** Most recently used first: when it was last saved, or created for older saves without that. */
+const recency = (s: ExplorationSession) => s.updatedAt ?? s.createdAt;
+
+// The last thing read or written, so saving (once per streamed question) doesn't re-parse every
+// stored fall. Keyed by the raw string, so a change from another tab is still picked up.
+let cache: { raw: string | null; sessions: Record<string, ExplorationSession> } | null = null;
+let lastSaved = 0;
+
 function readAll(): Record<string, ExplorationSession> {
   try {
     const raw = window.localStorage.getItem(KEY);
+    if (cache && cache.raw === raw) return { ...cache.sessions };
     if (!raw) return {};
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return {};
@@ -49,11 +58,17 @@ function readAll(): Record<string, ExplorationSession> {
 }
 
 function writeAll(sessions: Record<string, ExplorationSession>) {
-  const newest = Object.values(sessions)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, MAX_SESSIONS);
+  // Keep the most recently used falls, so carrying on with an old one never evicts it.
+  const kept = Object.fromEntries(
+    Object.values(sessions)
+      .sort((a, b) => recency(b).localeCompare(recency(a)))
+      .slice(0, MAX_SESSIONS)
+      .map((s) => [s.id, s]),
+  );
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(newest.map((s) => [s.id, s]))));
+    const raw = JSON.stringify(kept);
+    window.localStorage.setItem(KEY, raw);
+    cache = { raw, sessions: kept };
   } catch {
     // Storage full or unavailable (private mode): the session still works in memory.
   }
@@ -64,7 +79,9 @@ export const localSessionStore: SessionStore = {
     return readAll()[id] ?? null;
   },
   save(session) {
-    writeAll({ ...readAll(), [session.id]: session });
+    // Always later than the previous save, even within the same millisecond, so "most recent" is exact.
+    lastSaved = Math.max(Date.now(), lastSaved + 1);
+    writeAll({ ...readAll(), [session.id]: { ...session, updatedAt: new Date(lastSaved).toISOString() } });
   },
   remove(id) {
     const all = readAll();
@@ -74,7 +91,7 @@ export const localSessionStore: SessionStore = {
   latestId() {
     const sessions = Object.values(readAll());
     if (sessions.length === 0) return null;
-    return sessions.sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0].id;
+    return sessions.sort((a, b) => recency(b).localeCompare(recency(a)))[0].id;
   },
 };
 

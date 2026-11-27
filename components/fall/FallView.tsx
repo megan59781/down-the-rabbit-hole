@@ -56,6 +56,8 @@ export function FallView({ sessionId }: { sessionId: string }) {
   // The tour is offered at the start of each new fall until you've taken it; ? brings it back.
   const [offerTour, setOfferTour] = useState(false);
   const started = useRef(false);
+  // The plunge into a grabbed question finishes on a timer; leaving cancels it.
+  const diveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sound = useFallAudio(session?.mode ?? "deeper");
   const steering = useSteer(!reduce);
@@ -73,8 +75,14 @@ export function FallView({ sessionId }: { sessionId: string }) {
   // This page is kept alive in the background after you leave (cacheComponents), and its effects
   // re-run each time it's shown again: make sure you arrive falling, not mid-climb.
   useEffect(() => {
-    const timer = setTimeout(() => setClimbing(false), 0);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => {
+      setClimbing(false);
+      setDiving(null); // a dive cut short by leaving shouldn't leave the questions frozen
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      if (diveTimer.current) clearTimeout(diveTimer.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -170,8 +178,9 @@ export function FallView({ sessionId }: { sessionId: string }) {
     sound.whoosh();
     sound.chime(mode);
     setHasDived(true);
-    setTimeout(
+    diveTimer.current = setTimeout(
       () => {
+        diveTimer.current = null;
         controller.dive(id);
         setDiving(null);
       },
@@ -199,6 +208,8 @@ export function FallView({ sessionId }: { sessionId: string }) {
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     if (climbing) return;
+    // Leaving mid-dive: don't finish the dive behind your back.
+    if (diveTimer.current) clearTimeout(diveTimer.current);
     if (reduce) return router.push("/");
     setClimbing(true);
     sound.whoosh();

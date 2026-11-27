@@ -58,17 +58,8 @@ function memoryCounts(clientId: string, cost: number, now: number): Counts {
 
 // ---------------------------------------------------------------- Upstash Redis
 
-/** Fixed windows in Redis: INCRBY a key per window and let it expire with the window. */
-async function redisCounts(url: string, token: string, clientId: string, cost: number, now: number): Promise<Counts> {
-  const minute = Math.floor(now / 60_000);
-  const hour = Math.floor(now / 3_600_000);
-  const today = new Date(now).toISOString().slice(0, 10);
-  const keys = [`rh:m:${clientId}:${minute}`, `rh:h:${clientId}:${hour}`, `rh:d:${today}`];
-  const ttls = [120, 7_200, 172_800];
-  const commands = keys.flatMap((key, i) => [
-    ["INCRBY", key, String(cost)],
-    ["EXPIRE", key, String(ttls[i])],
-  ]);
+/** Run commands in one Upstash REST round trip; returns each command's numeric result. */
+async function pipeline(url: string, token: string, commands: string[][]): Promise<number[]> {
   const response = await fetch(`${url.replace(/\/+$/, "")}/pipeline`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -78,12 +69,33 @@ async function redisCounts(url: string, token: string, clientId: string, cost: n
   });
   if (!response.ok) throw new Error(`Upstash answered ${response.status}`);
   const results = (await response.json()) as { result?: unknown; error?: string }[];
-  const count = (i: number) => {
-    const r = results[i * 2];
+  return commands.map((_, i) => {
+    const r = results[i];
     if (!r || r.error || typeof r.result !== "number") throw new Error(r?.error ?? "Unexpected Upstash reply");
     return r.result;
-  };
-  return { minute: count(0), hour: count(1), day: count(2) };
+  });
+}
+
+/** INCRBY a key and (re)set its expiry: a fixed window that cleans itself up. */
+const bump = (key: string, cost: number, ttl: number) => [
+  ["INCRBY", key, String(cost)],
+  ["EXPIRE", key, String(ttl)],
+];
+
+/**
+ * Fixed windows in Redis. The visitor's own windows are counted first; the shared daily total
+ * only grows for requests that visitor is allowed to make, so one visitor hammering the API and
+ * being refused can't use up the day's cap for everyone else.
+ */
+async function redisCounts(url: string, token: string, clientId: string, cost: number, now: number): Promise<Counts> {
+  const minuteKey = `rh:m:${clientId}:${Math.floor(now / 60_000)}`;
+  const hourKey = `rh:h:${clientId}:${Math.floor(now / 3_600_000)}`;
+  const dayKey = `rh:d:${new Date(now).toISOString().slice(0, 10)}`;
+
+  const [minute, , hour] = await pipeline(url, token, [...bump(minuteKey, cost, 120), ...bump(hourKey, cost, 7_200)]);
+  if (minute > PER_MINUTE || hour > PER_HOUR) return { minute, hour, day: 0 };
+  const [day] = await pipeline(url, token, bump(dayKey, cost, 172_800));
+  return { minute, hour, day };
 }
 
 let warned = false;

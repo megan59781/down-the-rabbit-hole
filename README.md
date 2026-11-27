@@ -93,6 +93,17 @@ All model calls happen server-side; the browser never sees the key.
 - **Privacy:** questions go to the AI to grow new ones and are never stored or logged on the server; falls and habits live in the browser's localStorage. Once you've chosen a few times, your style lean and a few recent picks and skips are sent along with the question, so the AI can lean towards your taste (Deeper, Stranger) or write against it (Astray). Astray's embedding library and model weights come from jsDelivr and Hugging Face; no question text is sent to either.
 - Requests run at low effort for responsiveness, with Anthropic's server-side refusal fallback enabled.
 
+## Testing
+
+| Command | What it checks |
+|---|---|
+| `npm run lint` | ESLint (Next.js core web vitals and TypeScript rules) |
+| `npm run typecheck` | TypeScript, including the tests |
+| `npm test` | Jest: the logic (AI stream parsing, the rabbit's self-test, the anti-recommender, habits, safety, rate limits, the question tree, validation) in Node, and the components (tour, share sheet, Look up, controls, landing page) in jsdom with React Testing Library |
+| `npm run test:e2e` | Playwright: real browser journeys on desktop and phone, against a production build on port 3100. The AI is mocked in the browser, so no API key and no cost. Run `npx playwright install chromium` once first. |
+
+CI (`.github/workflows/ci.yml`) runs all four plus a production build on every push to `main` and every pull request, and uploads the Playwright report when an end-to-end test fails.
+
 ## Structure
 
 ```text

@@ -31,6 +31,8 @@ export type ExplorationSession = {
   id: string;
   rootQuestion: string;
   createdAt: string;
+  /** When this fall was last saved: decides which falls are kept and which is "your last fall". */
+  updatedAt?: string;
   nodes: QuestionNode[];
   /** The question you are currently falling through. */
   focusId: string;
