@@ -43,7 +43,7 @@ const STEPS: Step[] = [
   {
     target: "lookup",
     title: "Look up",
-    body: "See the path you fell, and what the rabbit has learnt about you.",
+    body: "See your fall so far, and what the rabbit has learnt about you.",
   },
   {
     target: "sound",

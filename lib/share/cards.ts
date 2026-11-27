@@ -4,6 +4,7 @@
 // every device, nothing sent anywhere until the person chooses where to share it.
 
 import { RABBIT_PATH } from "@/components/branding/RabbitIcon";
+import { displayUrl, siteUrl } from "@/lib/site";
 import type { ExplorationMode } from "@/lib/types";
 
 export type CardFormat = "portrait" | "story";
@@ -12,8 +13,10 @@ export const CARD_SIZE: Record<CardFormat, { w: number; h: number }> = {
   story: { w: 1080, h: 1920 }, // 9:16, stories
 };
 
-export type PathStep = { text: string; mode: ExplorationMode; answer?: string };
-export type PathCardData = { steps: PathStep[]; includeAnswers: boolean };
+/** `passed`: the other questions that rose alongside this one, which you didn't pick. */
+export type PathStep = { text: string; mode: ExplorationMode; answer?: string; passed?: string[] };
+/** `showPassed` draws the roads not taken branching off the thread at each step. */
+export type PathCardData = { steps: PathStep[]; includeAnswers: boolean; showPassed?: boolean };
 export type YouCardData = {
   topics: { label: string; share: number }[];
   style: { left: string; right: string; lean: number }[];
@@ -69,6 +72,14 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): st
   }
   if (line) lines.push(line);
   return lines;
+}
+
+/** One line, shortened with an ellipsis if it doesn't fit. */
+function fitLine(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxWidth) t = t.slice(0, -1);
+  return `${t.trimEnd()}…`;
 }
 
 /** Letter-spaced text drawn a character at a time (canvas letterSpacing isn't everywhere yet). */
@@ -167,49 +178,75 @@ function header(ctx: CanvasRenderingContext2D, f: Fonts) {
   spaced(ctx, "LE", cx, 148, 7);
 }
 
+/** The tagline, and the way in: a glowing pill with the site's address. */
 function footer(ctx: CanvasRenderingContext2D, f: Fonts, w: number, h: number) {
   ctx.textAlign = "center";
   ctx.fillStyle = C.soft;
-  ctx.font = `italic 400 40px ${f.serif}`;
-  ctx.fillText("Ask a question. Follow it down the hole.", w / 2, h - 108);
-  const host = typeof location !== "undefined" && !/localhost|127\.0\.0\.1/.test(location.host) ? location.host : "";
-  if (host) {
-    ctx.fillStyle = C.lavender;
-    ctx.font = `500 24px ${f.display}`;
-    ctx.fillText(host, w / 2, h - 62);
+  ctx.font = `italic 400 36px ${f.serif}`;
+  ctx.fillText("Ask a question. Follow it down the hole.", w / 2, h - 132);
+
+  const link = displayUrl(siteUrl());
+  if (link) {
+    ctx.font = `600 30px ${f.display}`;
+    const label = `${link}  →`;
+    const pillW = ctx.measureText(label).width + 72;
+    const pillH = 64;
+    const x = (w - pillW) / 2;
+    const y = h - 104;
+    ctx.beginPath();
+    ctx.roundRect(x, y, pillW, pillH, pillH / 2);
+    ctx.fillStyle = "rgba(183,154,255,0.16)";
+    ctx.fill();
+    ctx.strokeStyle = C.lavender;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = C.lavender;
+    ctx.shadowBlur = 18;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = C.soft;
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, w / 2, y + pillH / 2 + 1);
+    ctx.textBaseline = "alphabetic";
   }
   ctx.textAlign = "left";
 }
 
-// ---------------------------------------------------------------- Your path
+// ---------------------------------------------------------------- Your fall
 
 type Block =
   | { kind: "step"; step: PathStep; first: boolean; last: boolean }
   | { kind: "gap"; hidden: number };
 
-type Measured = { block: Block; lines: string[]; sub?: string[]; height: number };
+type Measured = { block: Block; lines: string[]; sub?: string[]; passed?: string[]; passedH: number; height: number };
 
-function measurePath(ctx: CanvasRenderingContext2D, f: Fonts, blocks: Block[], scale: number, includeAnswers: boolean, textW: number) {
+const PASSED_LH = 32;
+
+function measurePath(ctx: CanvasRenderingContext2D, f: Fonts, blocks: Block[], scale: number, data: PathCardData, textW: number) {
+  const { includeAnswers } = data;
   const out: Measured[] = [];
   for (const block of blocks) {
     if (block.kind === "gap") {
-      out.push({ block, lines: [], height: 70 * scale });
+      out.push({ block, lines: [], passedH: 0, height: 70 * scale });
       continue;
     }
     const { step, first } = block;
+    // The roads not taken at this step: one faint line each, branching off the thread.
+    ctx.font = `italic 400 ${24 * scale}px ${f.sans}`;
+    const passed = data.showPassed && !first ? (step.passed ?? []).slice(0, 3).map((q) => fitLine(ctx, q, textW - 30 * scale)) : [];
+    const passedH = passed.length ? passed.length * PASSED_LH * scale + 14 * scale : 0;
     if (step.answer !== undefined) {
       ctx.font = `italic 400 ${26 * scale}px ${f.sans}`;
       const sub = wrap(ctx, `The rabbit asked: ${step.text}`, textW);
       ctx.font = `400 ${38 * scale}px ${f.serif}`;
       const said = includeAnswers ? `“${step.answer}”` : "Told the rabbit something only I know.";
       const lines = wrap(ctx, said, textW);
-      out.push({ block, lines, sub, height: sub.length * 34 * scale + lines.length * 46 * scale + 14 * scale });
+      out.push({ block, lines, sub, passed, passedH, height: passedH + sub.length * 34 * scale + lines.length * 46 * scale + 14 * scale });
       continue;
     }
     ctx.font = first ? `400 ${58 * scale}px ${f.serif}` : `500 ${36 * scale}px ${f.display}`;
     const lines = wrap(ctx, step.text, textW);
     const lh = first ? 66 * scale : 46 * scale;
-    out.push({ block, lines, height: lines.length * lh });
+    out.push({ block, lines, passed, passedH, height: passedH + lines.length * lh });
   }
   return out;
 }
@@ -249,7 +286,7 @@ function drawPath(ctx: CanvasRenderingContext2D, f: Fonts, data: PathCardData, w
             })),
           ];
     for (const s of [1, 0.9, 0.8, 0.72]) {
-      const m = measurePath(ctx, f, blocks, s, data.includeAnswers, textW);
+      const m = measurePath(ctx, f, blocks, s, data, textW);
       const total = m.reduce((sum, b) => sum + b.height, 0) + GAP * s * (m.length - 1);
       if (total <= avail) {
         chosen = m;
@@ -270,7 +307,7 @@ function drawPath(ctx: CanvasRenderingContext2D, f: Fonts, data: PathCardData, w
         { kind: "step", step: steps[steps.length - 1], first: false, last: true },
       ],
       scale,
-      data.includeAnswers,
+      data,
       textW,
     );
   }
@@ -290,8 +327,25 @@ function drawPath(ctx: CanvasRenderingContext2D, f: Fonts, data: PathCardData, w
     }
     const { step, first, last } = m.block;
     const colour = first ? C.lavender : MODE_COLOUR[step.mode];
+    // The roads not taken, drawn just above the one you took, each a dashed branch off the thread.
+    (m.passed ?? []).forEach((q, k) => {
+      const ly = y + (k + 1) * PASSED_LH * scale;
+      ctx.save();
+      ctx.setLineDash([5 * scale, 6 * scale]);
+      ctx.strokeStyle = "rgba(183,154,255,0.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(dotX, ly - 9 * scale);
+      ctx.lineTo(textX - 14 * scale, ly - 9 * scale);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = "rgba(169,163,183,0.62)";
+      ctx.font = `italic 400 ${24 * scale}px ${f.sans}`;
+      ctx.fillText(q, textX, ly - 2 * scale);
+    });
+    const sy = y + m.passedH;
     const firstLine = step.answer !== undefined ? 34 * scale : first ? 66 * scale : 46 * scale;
-    const dotY = y + firstLine * 0.62;
+    const dotY = sy + firstLine * 0.62;
 
     // The thread of the fall, glowing from step to step.
     if (prevDot !== null) {
@@ -321,7 +375,7 @@ function drawPath(ctx: CanvasRenderingContext2D, f: Fonts, data: PathCardData, w
     }
     prevDot = dotY;
 
-    let ty = y;
+    let ty = sy;
     if (step.answer !== undefined) {
       ctx.fillStyle = C.muted;
       ctx.font = `italic 400 ${26 * scale}px ${f.sans}`;

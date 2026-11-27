@@ -5,14 +5,15 @@ import { motion } from "framer-motion";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { getHabits, leanings, narrowness, styleLean } from "@/lib/astray/habits";
 import { STYLE_AXES, type StyleAxis } from "@/lib/astray/territories";
-import { pathTo } from "@/lib/session/tree";
+import { childrenOf, pathTo } from "@/lib/session/tree";
 import { renderCard, type CardFormat, type CardRequest } from "@/lib/share/cards";
+import { siteUrl } from "@/lib/site";
 import type { ExplorationSession } from "@/lib/types";
 
 export type ShareKind = "path" | "you";
 
 const KINDS: { id: ShareKind; label: string }[] = [
-  { id: "path", label: "Your path" },
+  { id: "path", label: "Your fall" },
   { id: "you", label: "About you" },
 ];
 const FORMATS: { id: CardFormat; label: string }[] = [
@@ -44,15 +45,38 @@ export function ShareSheet({
 }) {
   const titleId = useId();
   const [kind, setKind] = useState<ShareKind>(initial);
-  const [format, setFormat] = useState<CardFormat>("portrait");
+  // Story first: it's the size most people share from a phone.
+  const [format, setFormat] = useState<CardFormat>("story");
   const [includeAnswers, setIncludeAnswers] = useState(false);
+  const [showPassed, setShowPassed] = useState(false);
   const [image, setImage] = useState<{ url: string; blob: Blob } | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // The caption stays hidden until you share: Share sends it with the image itself, and after
+  // Download or Copy image it appears, ready to paste alongside.
+  const [captionReady, setCaptionReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const dialog = useRef<HTMLDivElement>(null);
 
   const path = useMemo(() => pathTo(session, session.focusId), [session]);
   const hasAnswers = path.some((n) => n.answer !== undefined);
+  // Each step with the questions that rose alongside it (same direction) that you didn't pick.
+  const steps = useMemo(
+    () =>
+      path.map((n) => ({
+        text: n.text,
+        mode: n.mode,
+        answer: n.answer,
+        passed:
+          n.parentId && n.answer === undefined
+            ? childrenOf(session, n.parentId)
+                .filter((s) => s.id !== n.id && s.answer === undefined && s.mode === n.mode)
+                .slice(-4)
+                .map((s) => s.text)
+            : [],
+      })),
+    [path, session],
+  );
+  const hasPassed = steps.some((s) => s.passed.length > 0);
 
   // What the rabbit has learnt, as of opening the sheet.
   const you = useMemo(() => {
@@ -75,7 +99,7 @@ export function ShareSheet({
       ? {
           kind: "path",
           format,
-          data: { steps: path.map((n) => ({ text: n.text, mode: n.mode, answer: n.answer })), includeAnswers },
+          data: { steps, includeAnswers, showPassed },
         }
       : you.ready
         ? { kind: "you", format, data: you.data }
@@ -123,10 +147,32 @@ export function ShareSheet({
     setTimeout(() => setStatus(null), 2200);
   };
 
+  // The words that go with the card. The link sits in the text itself, because many apps drop a
+  // separate link when an image is attached.
+  const link = siteUrl();
+  const levels = path.length - 1;
+  const root = path[0]?.text ?? "";
+  const caption =
+    kind === "path"
+      ? (levels > 0
+          ? `I fell ${levels} question${levels === 1 ? "" : "s"} down the rabbit hole, starting from “${root}”`
+          : `I've just started falling down the rabbit hole from “${root}”`) +
+        (link ? ` – Where will you fall in: ${link}` : " – Where will you fall in?")
+      : `The rabbit has profiled my habits, what would it learn about you?${link ? ` Fall in: ${link}` : ""}`;
+
+  async function copyCaption() {
+    try {
+      await navigator.clipboard.writeText(caption);
+      flash("Caption copied.");
+    } catch {
+      flash("Couldn't copy the caption.");
+    }
+  }
+
   async function share() {
     if (!file) return;
     try {
-      await navigator.share({ files: [file], title: "Down the Rabbit Hole", text: "Ask a question. Follow it down the hole." });
+      await navigator.share({ files: [file], title: "Down the Rabbit Hole", text: caption });
     } catch (error) {
       // Closing the share menu isn't an error.
       if (!(error instanceof DOMException && error.name === "AbortError")) flash("Couldn't share. Try Download instead.");
@@ -138,6 +184,7 @@ export function ShareSheet({
     try {
       await navigator.clipboard.write([new ClipboardItem({ "image/png": image.blob })]);
       flash("Copied. Paste it anywhere.");
+      setCaptionReady(true);
     } catch {
       flash("Couldn't copy. Try Download instead.");
     }
@@ -150,6 +197,7 @@ export function ShareSheet({
     a.download = fileName;
     a.click();
     flash("Saved.");
+    setCaptionReady(true);
   }
 
   const ready = Boolean(request && image && !failed);
@@ -181,7 +229,7 @@ export function ShareSheet({
               // eslint-disable-next-line @next/next/no-img-element -- a local blob, not an optimisable asset
               <img
                 src={image.url}
-                alt={kind === "path" ? "Your share card: the path of your fall" : "Your share card: what the rabbit has learnt about you"}
+                alt={kind === "path" ? "Your share card: your fall" : "Your share card: what the rabbit has learnt about you"}
                 className="max-h-[52dvh] w-auto rounded-2xl border border-white/10 shadow-[0_0_40px_-10px_rgb(183_154_255/0.5)] sm:max-h-[70dvh]"
               />
             ) : (
@@ -215,16 +263,12 @@ export function ShareSheet({
           <Segmented label="Card" options={KINDS} value={kind} onChange={setKind} />
           <Segmented label="Size" options={FORMATS} value={format} onChange={setFormat} />
 
+          {kind === "path" && hasPassed ? (
+            <Switch checked={showPassed} onChange={setShowPassed} label="Show the questions I didn't pick" />
+          ) : null}
+
           {kind === "path" && hasAnswers ? (
-            <label className="flex cursor-pointer items-center gap-3 text-sm text-soft">
-              <input
-                type="checkbox"
-                checked={includeAnswers}
-                onChange={(e) => setIncludeAnswers(e.target.checked)}
-                className="h-4 w-4 accent-lavender"
-              />
-              Include my answers to the rabbit
-            </label>
+            <Switch checked={includeAnswers} onChange={setIncludeAnswers} label="Include my answers to the rabbit" />
           ) : null}
 
           <div className="mt-auto flex flex-wrap gap-2">
@@ -262,6 +306,22 @@ export function ShareSheet({
               </button>
             ) : null}
           </div>
+          {/* After Download or Copy image (images can't carry text), the caption to paste alongside. */}
+          {captionReady ? (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-white/10 bg-midnight/60 p-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs tracking-[0.2em] text-muted uppercase">Add this caption</span>
+                <button type="button" onClick={copyCaption} className="text-xs text-lavender hover:text-soft">
+                  Copy caption
+                </button>
+              </div>
+              <p className="mt-1.5 text-sm text-soft/90">{caption}</p>
+            </motion.div>
+          ) : null}
           <p role="status" className="min-h-5 text-sm text-lavender">
             {status}
           </p>
@@ -303,5 +363,36 @@ function Segmented<T extends string>({
         ))}
       </div>
     </div>
+  );
+}
+
+/** An on/off switch beside its label; the whole row is the control, and it reads as a switch to screen readers. */
+function Switch({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="group flex items-center gap-3 self-start text-left text-sm text-soft"
+    >
+      <span
+        aria-hidden
+        className={clsx(
+          "relative h-6 w-11 shrink-0 rounded-full border transition-colors",
+          checked ? "border-lavender bg-lavender/80" : "border-white/20 bg-midnight/70 group-hover:border-white/40",
+        )}
+      >
+        <motion.span
+          className={clsx(
+            "absolute top-1/2 left-0.5 h-4.5 w-4.5 -translate-y-1/2 rounded-full",
+            checked ? "bg-midnight" : "bg-muted",
+          )}
+          animate={{ x: checked ? 20 : 0 }}
+          transition={{ type: "spring", stiffness: 500, damping: 32 }}
+        />
+      </span>
+      {label}
+    </button>
   );
 }

@@ -33,7 +33,7 @@ npm run build
    - **✦ Stranger**: the tunnel twists into a pink spiral and tips sideways. Other worlds, odd angles.
    - **⇝ Astray**: the anti-algorithm. The hole leads you away from your own habits (see below).
 5. **Scroll or swipe** to fall faster; stop and you slow to a hover.
-6. **↑ Look up** pauses the fall. Two pages: **Your path** (the way down, with the questions you passed beside each step; tap any to fall back into it) and **About you** (what the rabbit has learnt about your taste).
+6. **↑ Look up** pauses the fall. Two pages: **Your fall** (the way down, with the questions you passed beside each step; tap any to fall back into it) and **About you** (what the rabbit has learnt about your taste).
 7. **↻ Let others rise** swaps in a fresh set.
 8. **Steer**: tilt your phone (or move the mouse on desktop) to lean the hole; the questions drift the other way.
 9. **Depth**: every level down is darker and slower, and the rabbit flashes past more often.
@@ -83,6 +83,7 @@ All model calls happen server-side; the browser never sees the key.
 | `AI_MODEL` | model id, or shorthand `opus` / `sonnet` / `haiku`; defaults to `claude-opus-5-5` |
 | `RATE_LIMIT_PER_MINUTE` / `RATE_LIMIT_PER_HOUR` | per-visitor limits (default 40 / 300) |
 | `AI_DAILY_CAP` | total AI calls per day across everyone, a spending cap (default 3000) |
+| `NEXT_PUBLIC_SITE_URL` | the public address, shown on share cards and in share captions (defaults to wherever the site is open) |
 
 - **Fast:** questions stream in one by one as the model writes them (first one in about a second). Once they've risen, the next level is quietly grown for each (two at a time), so diving is usually instant.
 - **Safe by default:** every streamed line is validated on the server and again in the browser. Nothing model-generated is executed.
